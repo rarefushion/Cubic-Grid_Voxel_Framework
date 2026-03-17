@@ -1,0 +1,6 @@
+[submodule "Cubic-Grid_Voxel_Renderer"]
+	path = Cubic-Grid_Voxel_Renderer
+	url = https://github.com/rarefushion/Cubic-Grid_Voxel_Renderer.git
+[submodule "Cubic-Grid_Voxel_Core"]
+	path = Cubic-Grid_Voxel_Core
+	url = https://github.com/rarefushion/Cubic-Grid_Voxel_Core.git
