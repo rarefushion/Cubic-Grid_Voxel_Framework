@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/Cubic-Grid_Voxel_Core/" />
+  <Folder Name="/Cubic-Grid_Voxel_Core/Core/">
+    <Project Path="Cubic-Grid_Voxel_Core/Core/GalensUnified.CubicGrid.Core.csproj" />
+  </Folder>
+  <Folder Name="/Cubic-Grid_Voxel_Renderer/" />
+  <Folder Name="/Cubic-Grid_Voxel_Renderer/C# Wrapper/">
+    <Project Path="Cubic-Grid_Voxel_Renderer/C# Wrapper/GalensUnified.CubicGrid.Renderer.NET.csproj" />
+  </Folder>
+  <Folder Name="/Framework/">
+    <Project Path="Framework/GalensUnified.CubicGrid.Framework.csproj" />
+  </Folder>
+  <Project Path="Framework Example/Framework Example.csproj" />
+</Solution>

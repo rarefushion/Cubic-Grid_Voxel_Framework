@@ -1,0 +1,12 @@
+# Separate subject line from body with a blank line
+# Limit the subject line to 50 characters
+# Capitalize the subject line
+# Do not end the subject line with a period
+# Use the imperative mood in the subject line
+# Subject line starts with basic type
+# Possible types of subject lines Feat: Refactor: Chore: More kinds added as needed
+
+# Wrap the body at 72 characters
+# Use the body to explain in detail
+# What does it do and how is it used?
+# Don't describe how it's done.
