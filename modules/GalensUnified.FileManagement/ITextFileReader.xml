@@ -1,0 +1,125 @@
+<MyDocs>
+    <MyMembers name="ITextFileReader">
+        <summary>
+        Provides methods for reading text files from the file system,
+        supporting both synchronous and asynchronous operations,
+        single file and directory reads, with optional recursive traversal.
+        </summary>
+    </MyMembers>
+    <MyMembers name="GetTexts(string path, bool recursive = false, Encoding? encoding = null)">
+        <summary>
+        Reads the text content of all files in the specified directory.
+        </summary>
+        <param name="path">The path to the directory to read from.</param>
+        <param name="recursive">
+        If <c>true</c>, reads files from all subdirectories recursively.
+        Defaults to <c>false</c>.
+        </param>
+        <param name="encoding">
+        The character encoding to use when reading files.
+        Pass <c>null</c> to use the implementation's default.
+        </param>
+        <returns>A <see cref="List{T}"/> containing the text content of each file.</returns>
+    </MyMembers>
+    <MyMembers name="GetTexts(DirectoryInfo path, bool recursive = false, Encoding? encoding = null)">
+        <summary>
+        Reads the text content of all files in the specified directory.
+        </summary>
+        <param name="path">The <see cref="DirectoryInfo"/> representing the directory to read from.</param>
+        <param name="recursive">
+        If <c>true</c>, reads files from all subdirectories recursively.
+        Defaults to <c>false</c>.
+        </param>
+        <param name="encoding">
+        The character encoding to use when reading files.
+        Pass <c>null</c> to use the implementation's default.
+        </param>
+        <returns>A <see cref="List{T}"/> containing the text content of each file.</returns>
+    </MyMembers>
+    <MyMembers name="GetText(string path, Encoding? encoding = null)">
+        <summary>
+        Reads the entire text content of the specified file.
+        </summary>
+        <param name="path">The path to the file to read.</param>
+        <param name="encoding">
+        The character encoding to use when reading the file.
+        Pass <c>null</c> to use the implementation's default.
+        </param>
+        <returns>A <see cref="string"/> containing the file's text content.</returns>
+    </MyMembers>
+    <MyMembers name="GetText(FileInfo file, Encoding? encoding = null)">
+        <summary>
+        Reads the entire text content of the specified file.
+        </summary>
+        <param name="file">The <see cref="FileInfo"/> representing the file to read.</param>
+        <param name="encoding">
+        The character encoding to use when reading the file.
+        Pass <c>null</c> to use the implementation's default.
+        </param>
+        <returns>A <see cref="string"/> containing the file's text content.</returns>
+    </MyMembers>
+    <MyMembers name="GetTextsAsync(string path, bool recursive = false, Encoding? encoding = null, CancellationToken cancellationToken = default)">
+        <summary>
+        Asynchronously reads the text content of all files in the specified directory,
+        streaming each file's content as it becomes available.
+        </summary>
+        <param name="path">The path to the directory to read from.</param>
+        <param name="recursive">
+        If <c>true</c>, reads files from all subdirectories recursively.
+        Defaults to <c>false</c>.
+        </param>
+        <param name="encoding">
+        The character encoding to use when reading files.
+        Pass <c>null</c> to use the implementation's default.
+        </param>
+        <param name="cancellationToken">A token to cancel the operation. Defaults to <see cref="CancellationToken.None"/>.</param>
+        <returns>
+        An <see cref="IAsyncEnumerable{T}"/> that streams the text content
+        of each file as it is read.
+        </returns>
+    </MyMembers>
+    <MyMembers name="GetTextsAsync(DirectoryInfo path, bool recursive = false, Encoding? encoding = null, CancellationToken cancellationToken = default)">
+        <summary>
+        Asynchronously reads the text content of all files in the specified directory,
+        streaming each file's content as it becomes available.
+        </summary>
+        <param name="path">The <see cref="DirectoryInfo"/> representing the directory to read from.</param>
+        <param name="recursive">
+        If <c>true</c>, reads files from all subdirectories recursively.
+        Defaults to <c>false</c>.
+        </param>
+        <param name="encoding">
+        The character encoding to use when reading files.
+        Pass <c>null</c> to use the implementation's default.
+        </param>
+        <param name="cancellationToken">A token to cancel the operation. Defaults to <see cref="CancellationToken.None"/>.</param>
+        <returns>
+        An <see cref="IAsyncEnumerable{T}"/> that streams the text content
+        of each file as it is read.
+        </returns>
+    </MyMembers>
+    <MyMembers name="GetTextAsync(string path, Encoding? encoding = null, CancellationToken cancellationToken = default)">
+        <summary>
+        Asynchronously reads the entire text content of the specified file.
+        </summary>
+        <param name="path">The path to the file to read.</param>
+        <param name="encoding">
+        The character encoding to use when reading the file.
+        Pass <c>null</c> to use the implementation's default.
+        </param>
+        <param name="cancellationToken">A token to cancel the operation. Defaults to <see cref="CancellationToken.None"/>.</param>
+        <returns>A <see cref="Task{TResult}"/> that resolves to the file's text content.</returns>
+    </MyMembers>
+    <MyMembers name="GetTextAsync(FileInfo file, Encoding? encoding = null, CancellationToken cancellationToken = default)">
+        <summary>
+        Asynchronously reads the entire text content of the specified file.
+        </summary>
+        <param name="file">The <see cref="FileInfo"/> representing the file to read.</param>
+        <param name="encoding">
+        The character encoding to use when reading the file.
+        Pass <c>null</c> to use the implementation's default.
+        </param>
+        <param name="cancellationToken">A token to cancel the operation. Defaults to <see cref="CancellationToken.None"/>.</param>
+        <returns>A <see cref="Task{TResult}"/> that resolves to the file's text content.</returns>
+    </MyMembers>
+</MyDocs>
