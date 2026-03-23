@@ -7,7 +7,7 @@ namespace GalensUnified.FileManagement;
 public class BasicTextFileManager : ITextFileReader
 {
     public List<string> GetTexts(string path, bool recursive = false, string searchPattern = "*", Encoding? encoding = null) =>
-        GetTexts(new DirectoryInfo(path), recursive, searchPattern, encoding);
+        GetTexts(ResolveDirectoryPath(path), recursive, searchPattern, encoding);
 
     public List<string> GetTexts(DirectoryInfo path, bool recursive = false, string searchPattern = "*", Encoding? encoding = null)
     {
@@ -42,7 +42,7 @@ public class BasicTextFileManager : ITextFileReader
 
     public async IAsyncEnumerable<string> GetTextsAsync(string path, bool recursive = false, string searchPattern = "*", Encoding? encoding = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (var text in GetTextsAsync(new DirectoryInfo(path), recursive, searchPattern, encoding, cancellationToken))
+        await foreach (var text in GetTextsAsync(ResolveDirectoryPath(path), recursive, searchPattern, encoding, cancellationToken))
             yield return text;
     }
 
@@ -67,5 +67,15 @@ public class BasicTextFileManager : ITextFileReader
             throw new FileNotFoundException($"File not found at: \"{path}\"");
 
         return new FileInfo(path);
+    }
+
+    protected virtual DirectoryInfo ResolveDirectoryPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+        if (!Directory.Exists(path))
+            throw new FileNotFoundException($"Directory not found at: \"{path}\"");
+
+        return new DirectoryInfo(path);
     }
 }
