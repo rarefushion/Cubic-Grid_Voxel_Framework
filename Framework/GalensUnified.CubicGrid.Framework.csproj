@@ -2,6 +2,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\modules\GalensUnified.FileManagement\GalensUnified.FileManagement.csproj" />
+    <ProjectReference Include="..\Cubic-Grid_Voxel_Core\Core\GalensUnified.CubicGrid.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.Maths" Version="2.23.0" />
   </ItemGroup>
 
   <PropertyGroup>

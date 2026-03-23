@@ -2,6 +2,8 @@ using System.Numerics;
 using Silk.NET.Maths;
 using static GalensUnified.CubicGrid.Core.Math.RegionMath;
 
+namespace GalensUnified.CubicGrid.Framework;
+
 /// <summary>Manages a specified number of chunks allowing retrieval via their position.</summary>
 public class ChunkCluster
 {
