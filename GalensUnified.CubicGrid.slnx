@@ -10,5 +10,8 @@
   <Folder Name="/Framework/">
     <Project Path="Framework/GalensUnified.CubicGrid.Framework.csproj" />
   </Folder>
+  <Folder Name="/modules/">
+    <Project Path="modules/GalensUnified.FileManagement/GalensUnified.FileManagement.csproj" />
+  </Folder>
   <Project Path="Framework Example/Framework Example.csproj" />
 </Solution>
