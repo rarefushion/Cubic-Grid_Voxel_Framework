@@ -5,7 +5,7 @@ namespace GalensUnified.CubicGrid.Framework;
 public interface IChunkLoadRegion
 {
     public Vector3D<int> CentrePosition { get; }
-    public int ChunkLength { init; }
+    public int ChunkLength { get; }
     public int HalfLengthInChunks { get; }
     public event Action<Vector3D<int>> ChunkAdded;
     public event Action<Vector3D<int>> ChunkRemoved;
