@@ -12,7 +12,7 @@ public class ChunkLoadRegion(Vector3D<int> centrePosition, int chunkLength, int 
     public Vector3D<int> CentrePosition => _centrePosition;
 
 
-    public Vector3D<int>[] chunks = [.. CubicNeighborhood.ExpandingCubePositions(centrePosition, new(halfLengthInChunks * chunkLength), chunkLength)];
+    public HashSet<Vector3D<int>> chunks = [.. CubicNeighborhood.ExpandingCubePositions(centrePosition, new(halfLengthInChunks * chunkLength), chunkLength)];
     public event Action<Vector3D<int>>? ChunkAdded;
     public event Action<Vector3D<int>>? ChunkRemoved;
 
@@ -33,8 +33,8 @@ public class ChunkLoadRegion(Vector3D<int> centrePosition, int chunkLength, int 
 
     private void UpdateManagedChunks()
     {
-        Vector3D<int>[] newPositions = [.. CubicNeighborhood.ExpandingCubePositions(CentrePosition, new(HalfLengthInChunks * chunkLength), chunkLength)];
-        List<Vector3D<int>> keysToRemove = [];
+        HashSet<Vector3D<int>> newPositions = [.. CubicNeighborhood.ExpandingCubePositions(CentrePosition, new(HalfLengthInChunks * chunkLength), chunkLength)];
+        HashSet<Vector3D<int>> keysToRemove = [];
         foreach (Vector3D<int> pos in chunks)
             if (!newPositions.Contains(pos)) 
                 keysToRemove.Add(pos);
