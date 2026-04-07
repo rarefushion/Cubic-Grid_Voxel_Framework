@@ -4,17 +4,15 @@ using Silk.NET.Maths;
 namespace GalensUnified.CubicGrid.Framework;
 
 /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="T:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager"]'/>
-public class ChunkClusterGenerationManager
+public class ChunkClusterGenerationManager : IChunkClusterGenerationManager
 {
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="T:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.CancelationCondition"]'/>
-    public delegate bool CancelationCondition();
     /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="T:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ChunkGenData"]'/>
     public record ChunkGenData(Vector3D<int> Position, int Stage, Task? Task);
 
     /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ErrorThrown"]'/>
-    public Action<string>? ErrorThrown;
+    public Action<string>? ErrorThrown { get; set; }
     /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.StageCompleted"]'/>
-    public Action<Vector3D<int>, int>? StageCompleted;
+    public Action<Vector3D<int>, int>? StageCompleted { get; set; }
     /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.chunksFailed"]'/>
     public readonly ConcurrentBag<Vector3D<int>> chunksFailed = [];
     /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.chunkByPos"]'/>
