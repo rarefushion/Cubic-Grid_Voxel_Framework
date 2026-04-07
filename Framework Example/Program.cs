@@ -13,21 +13,16 @@ static class Program
 {
     // Startup Values
     const int chunkLength = 16;
-    const int renderDistance = 8;
+    const int renderDistance = 24;
     const int WorldLengthInChunks = renderDistance * 2 + 1;
     public static Vector3 camStartPos = Vector3.One * 1.5f;
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
     // Runtime
-    public static int[] chunksCompletedStage = new int[Enum.GetNames(typeof(ChunkGenerationStage)).Length];
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
-    public static Vector3D<int> previousCamChunkPosition = ChunkPosByVector3(camStartPos);
     public static DateTime frameStart = DateTime.Now;
-
-    public static ChunkLoadRegion chunksLoadedHandler = new(BlockPosByVector3(camStartPos), chunkLength, renderDistance);
-    public static ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks);
 
     static void Main(string[] args)
     {
@@ -65,16 +60,7 @@ static class Program
         };
         previousMousePosition = input.Mice[0].Position;
         input.Mice[0].MouseMove += (mouse, pos) => camRotation += GetCameraRotationDelta(mouse, pos, mouseSensitivity);
-        window.Update += delta =>
-        {
-            camPosition += GetCameraPositionDelta(delta, input, camRotation.Y);
-            Vector3D<int> chunkPos = ChunkPosByVector3(camPosition);
-            if (chunkPos != previousCamChunkPosition)
-            {
-                chunksLoadedHandler.SetPosition(chunkPos);
-                previousCamChunkPosition = chunkPos;
-            }
-        };
+        window.Update += delta => camPosition += GetCameraPositionDelta(delta, input, camRotation.Y);
 
         // Create Blocks
         // Faces are named by the Assets/Textures file name.
@@ -107,23 +93,20 @@ static class Program
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
-        chunksLoadedHandler.ChunkRemoved += pos => shader.DeactivateChunk(chunkCluster.IndexByChunkCoord(chunkCluster.ChunkCoordByGlobalPos(pos)));
-        // Generation Handling
+        // Chunk Managemeant
+        ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks);
         ChunkProcessor processor = new(chunkCluster, shader);
+        ChunkLoadRegion chunksLoadedHandler = new(BlockPosByVector3(camStartPos), chunkLength, renderDistance);
         ChunkClusterGenerationManager generationManager = new(processor, 32);
-        chunksLoadedHandler.ChunkAdded     += generationManager.EnqueueChunk;
-        chunksLoadedHandler.ChunkRemoved   += generationManager.DiscardChunk;
-        generationManager  .StageCompleted += (pos, stage) => chunksCompletedStage[stage]++;
-        generationManager  .ErrorThrown    += Console.WriteLine;
+        ChunkClusterLifetimeManager lifetimeManager = new(chunkLength, chunksLoadedHandler, generationManager);
+        lifetimeManager.RemoveChunk += pos => shader.DeactivateChunk(chunkCluster.IndexByChunkCoord(chunkCluster.ChunkCoordByGlobalPos(pos)));
+        generationManager.ErrorThrown += Console.WriteLine;
         static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
         window.Render += dt =>
         {
             frameStart = DateTime.Now;
-            generationManager.ProcessChunks(OverTargtetFrameTime);
+            lifetimeManager.ProcessChunks(BlockPosByVector3(camPosition), OverTargtetFrameTime);
         };
-        // Add all starting chunks as ChunkLoadRegion signalled for them before we could subscribe our ChunkClusterGenerationManager
-        foreach (Vector3D<int> chunk in chunksLoadedHandler.chunks)
-            generationManager.EnqueueChunk(chunk);
 
         window.Render += dt => shader.Render
         (
@@ -136,15 +119,8 @@ static class Program
     static Vector3D<int> BlockPosByVector3(Vector3 pos) =>
         new((int)pos.X, (int)pos.Y, (int)pos.Z);
 
-    static Vector3D<int> ChunkPosByVector3(Vector3 pos) => new
-        (
-            (int)MathF.Floor(pos.X / chunkLength) * chunkLength,
-            (int)MathF.Floor(pos.Y / chunkLength) * chunkLength,
-            (int)MathF.Floor(pos.Z / chunkLength) * chunkLength
-        );
-
     /// <summary>Calculates the camera rotation every frame.</summary>
-    /// <returns>Final camera rotation.</returns>
+    /// <returns>Distance to rotate the camera.</returns>
     static Vector2 GetCameraRotationDelta(IMouse mouse, Vector2 pos, float sensitivity)
     {
         if (mouse.Cursor.CursorMode != CursorMode.Raw)
