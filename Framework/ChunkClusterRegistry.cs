@@ -3,7 +3,7 @@ using Silk.NET.Maths;
 
 namespace GalensUnified.CubicGrid.Framework;
 
-public class ChunkLoadRegion(Vector3D<int> centrePosition, int chunkLength, int halfLengthInChunks) : IChunkLoadRegion
+public class ChunkClusterRegistry(Vector3D<int> centrePosition, int chunkLength, int halfLengthInChunks) : IChunkClusterRegistry
 {
     public int ChunkLength => chunkLength;
     private int _halfLengthInChunks = halfLengthInChunks;

@@ -14,7 +14,7 @@ public class ChunkClusterLifetimeManager
     public event Action<Vector3D<int>>? RemoveChunk;
     /// <summary>Chunks that in queue to be removed.</summary>
     public readonly List<Vector3D<int>> chunksToDestroy = [];
-    public readonly IChunkLoadRegion loadedRegion;
+    public readonly IChunkClusterRegistry loadedRegion;
     public readonly IChunkClusterGenerationManager generationManager;
 
     private readonly int chunkLength;
@@ -61,7 +61,7 @@ public class ChunkClusterLifetimeManager
         return chunksToDestroy.Count == 0;
     }
 
-    public ChunkClusterLifetimeManager(int chunkLength, IChunkLoadRegion loadedRegion, IChunkClusterGenerationManager generationManager)
+    public ChunkClusterLifetimeManager(int chunkLength, IChunkClusterRegistry loadedRegion, IChunkClusterGenerationManager generationManager)
     {
         this.chunkLength = chunkLength;
         this.loadedRegion = loadedRegion;

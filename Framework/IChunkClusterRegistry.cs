@@ -2,7 +2,7 @@ using Silk.NET.Maths;
 
 namespace GalensUnified.CubicGrid.Framework;
 
-public interface IChunkLoadRegion
+public interface IChunkClusterRegistry
 {
     public Vector3D<int> CentrePosition { get; }
     public int ChunkLength { get; }

@@ -96,7 +96,7 @@ static class Program
         // Chunk Managemeant
         ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks);
         ChunkProcessor processor = new(chunkCluster, shader);
-        ChunkLoadRegion chunksLoadedHandler = new(BlockPosByVector3(camStartPos), chunkLength, renderDistance);
+        ChunkClusterRegistry chunksLoadedHandler = new(BlockPosByVector3(camStartPos), chunkLength, renderDistance);
         ChunkClusterGenerationManager generationManager = new(processor, 32);
         ChunkClusterLifetimeManager lifetimeManager = new(chunkLength, chunksLoadedHandler, generationManager);
         lifetimeManager.RemoveChunk += pos => shader.DeactivateChunk(chunkCluster.IndexByChunkCoord(chunkCluster.ChunkCoordByGlobalPos(pos)));
