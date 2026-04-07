@@ -28,6 +28,9 @@ public class ChunkLoadRegion(Vector3D<int> centrePosition, int chunkLength, int 
         UpdateManagedChunks();
     }
 
+    public IEnumerable<Vector3D<int>> GetLoadedChunks() =>
+        chunks;
+
     private void UpdateManagedChunks()
     {
         Vector3D<int>[] newPositions = [.. CubicNeighborhood.ExpandingCubePositions(CentrePosition, new(HalfLengthInChunks * chunkLength), chunkLength)];

@@ -12,4 +12,5 @@ public interface IChunkLoadRegion
 
     public void SetPosition(Vector3D<int> centrePosition);
     public void SetLoadDistance(int halfLengthInChunks);
+    public IEnumerable<Vector3D<int>> GetLoadedChunks();
 }
