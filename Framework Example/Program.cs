@@ -19,6 +19,7 @@ static class Program
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
     // Runtime
+    public static int[] chunksCompletedStage = new int[Enum.GetNames(typeof(ChunkGenerationStage)).Length];
     public static bool cursorVisible = false;
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
@@ -96,7 +97,6 @@ static class Program
         // Ambiguous between mine and Silk.NET.OpenGL.Shader :sob:
         GalensUnified.CubicGrid.Renderer.NET.Shader shader = new
         (
-
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
@@ -110,19 +110,20 @@ static class Program
         chunksLoadedHandler.ChunkRemoved += pos => shader.DeactivateChunk(chunkCluster.IndexByChunkCoord(chunkCluster.ChunkCoordByGlobalPos(pos)));
         // Generation Handling
         ChunkProcessor processor = new(chunkCluster, shader);
-        static bool NeighborPointsCalculatedTest(Vector3D<int> pos) => true; // Not used yet
-        ChunkClusterGenerationManager generationHandler = new(processor, 32, NeighborPointsCalculatedTest);
-        chunksLoadedHandler.ChunkAdded += generationHandler.OnChunkAdded;
-        chunksLoadedHandler.ChunkRemoved += generationHandler.OnChunkRemoved;
+        ChunkClusterGenerationManager generationManager = new(processor, 32);
+        chunksLoadedHandler.ChunkAdded     += generationManager.EnqueueChunk;
+        chunksLoadedHandler.ChunkRemoved   += generationManager.DiscardChunk;
+        generationManager  .StageCompleted += (pos, stage) => chunksCompletedStage[stage]++;
+        generationManager  .ErrorThrown    += Console.WriteLine;
         static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
         window.Render += dt =>
         {
             frameStart = DateTime.Now;
-            generationHandler.ProcessChunks(OverTargtetFrameTime);
+            generationManager.ProcessChunks(OverTargtetFrameTime);
         };
         // Add all starting chunks as ChunkLoadRegion signalled for them before we could subscribe our ChunkClusterGenerationManager
         foreach (Vector3D<int> chunk in chunksLoadedHandler.chunks)
-            generationHandler.OnChunkAdded(chunk);
+            generationManager.EnqueueChunk(chunk);
 
         window.Render += dt => shader.Render
         (

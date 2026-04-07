@@ -5,12 +5,30 @@ using Silk.NET.Maths;
 
 using static BlockIDs;
 
+public enum ChunkGenerationStage
+{
+    CalculatingPoints,
+    Rendering
+}
+
 public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcessor
 {
     private readonly int chunkLength = cluster.chunkLength;
 
     private readonly ChunkCluster cluster = cluster;
     private readonly Shader shader = shader;
+
+    public int StagesCount => Enum.GetNames(typeof(ChunkGenerationStage)).Length;
+
+    public bool IsReadyForNextStage(Vector3D<int> chunk, int stage) =>
+        true;
+
+    public Task ProcessStage(Vector3D<int> chunk, int stage) => (ChunkGenerationStage)stage switch
+    {
+        ChunkGenerationStage.CalculatingPoints => CalculatePointsAsync(chunk),
+        ChunkGenerationStage.Rendering => RenderAsync(chunk),
+        _ => throw new Exception($"Stage '{stage}' doesn't exist.")
+    };
 
     public async Task CalculatePointsAsync(Vector3D<int> chunk)
     {
@@ -39,14 +57,10 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
         }
     }
 
-    public async Task OnNeighborPointsCalculatedAsync(Vector3D<int> chunk)
-    {
-        // Empty for now
-    }
-
-    public async Task RenderAsync(Vector3D<int> chunk)
+    public Task RenderAsync(Vector3D<int> chunk)
     {
         int worldIndex = cluster.IndexByChunkCoord(cluster.ChunkCoordByGlobalPos(chunk));
         shader.RenderChunk((Vector3)chunk, worldIndex, cluster.GetChunkByPosition(chunk));
+        return Task.CompletedTask;
     }
 }

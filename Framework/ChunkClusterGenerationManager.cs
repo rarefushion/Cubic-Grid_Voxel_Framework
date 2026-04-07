@@ -3,173 +3,139 @@ using Silk.NET.Maths;
 
 namespace GalensUnified.CubicGrid.Framework;
 
-// Should be replaced
-public delegate bool NeighborPointsCalculated(Vector3D<int> innerChunk);
-
 /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="T:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager"]'/>
-public class ChunkClusterGenerationManager(IChunkProcessor chunkProcessor, int maxChunksProcessing, NeighborPointsCalculated neighborTest)
+public class ChunkClusterGenerationManager
 {
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ErrorThrown"]'/>
-    public Action<string>? ErrorThrown;
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.chunksFailed"]'/>
-    public readonly ConcurrentBag<Vector3D<int>> chunksFailed = [];
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.chunkProcessingByPos"]'/>
-    public readonly Dictionary<Vector3D<int>, ChunkGenerationHandler> chunkProcessingByPos = [];
     /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="T:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.CancelationCondition"]'/>
     public delegate bool CancelationCondition();
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="T:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ChunkTask"]'/>
-    public record ChunkTask(Task Task, Vector3D<int> Chunk);
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="P:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ChunksCalculatingPoints"]'/>
-    public List<ChunkTask> ChunksCalculatingPoints => chunksCalculatingPoints;
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="P:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ChunksCalculatingNeighborPoints"]'/>
-    public List<ChunkTask> ChunksCalculatingNeighborPoints => chunksCalculatingNeighborPoints;
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="P:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ChunksRendering"]'/>
-    public List<ChunkTask> ChunksRendering => chunksRendering;
-    private readonly NeighborPointsCalculated neighborTest = neighborTest;
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="T:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ChunkGenData"]'/>
+    public record ChunkGenData(Vector3D<int> Position, int Stage, Task? Task);
 
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ErrorThrown"]'/>
+    public Action<string>? ErrorThrown;
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.StageCompleted"]'/>
+    public Action<Vector3D<int>, int>? StageCompleted;
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.chunksFailed"]'/>
+    public readonly ConcurrentBag<Vector3D<int>> chunksFailed = [];
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="F:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.chunkByPos"]'/>
+    public readonly Dictionary<Vector3D<int>, ChunkGenData> chunkByPos = [];
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="P:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.chunksProcessingStage"]'/>
+    public readonly List<ChunkGenData>[] chunksProcessingStage;
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="P:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.chunksEnqueuedStage"]'/>
+    public readonly List<ChunkGenData>[] chunksEnqueuedStage;
+    public readonly IChunkProcessor processor;
 
-    private readonly List<Vector3D<int>> chunksToCalculatePoints = [];
-    private readonly List<Vector3D<int>> chunksAwaitingNeighbors = [];
-    private readonly List<Vector3D<int>> chunksToRender = [];
-    private readonly List<ChunkTask> chunksCalculatingPoints = [];
-    private readonly List<ChunkTask> chunksCalculatingNeighborPoints = [];
-    private readonly List<ChunkTask> chunksRendering = [];
-    private readonly IChunkProcessor processor = chunkProcessor;
-    private readonly SemaphoreSlim semaphore = new(maxChunksProcessing);
+    private readonly int maxStage;
+
+    private readonly SemaphoreSlim semaphore;
 
     /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="M:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.ProcessChunks(GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.CancelationCondition)"]'/>
     public void ProcessChunks(CancelationCondition cancelationCondition)
     {
-        if (cancelationCondition())
-            return;
-
-        UpdateChunkStateByStage(ChunkGenerationStage.Instantiated);
-        UpdateChunkStateByStage(ChunkGenerationStage.PointsCalculated);
-        UpdateChunkStateByStage(ChunkGenerationStage.ChunkNeighborsPointsCalculated);
-
-        if (cancelationCondition())
-            return;
-
-        while(!cancelationCondition() && QueueNextChunkByStage(ChunkGenerationStage.ChunkNeighborsPointsCalculated));
-        while(!cancelationCondition() && QueueNextChunkByStage(ChunkGenerationStage.PointsCalculated));
-        while(!cancelationCondition() && QueueNextChunkByStage(ChunkGenerationStage.Instantiated));
+        int stage = 0;
+        while(!cancelationCondition() && UpdateChunkStateByStage(stage++) && stage <= maxStage);
+        stage--;
+        while(!cancelationCondition() && QueueNextChunksByStage(stage--, cancelationCondition) && stage >= 0);
     }
 
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="M:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.OnChunkAdded(Silk.NET.Maths.Vector3D{System.Int32})"]'/>
-    public void OnChunkAdded(Vector3D<int> pos)
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="M:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.EnqueueChunk(Silk.NET.Maths.Vector3D{System.Int32})"]'/>
+    public void EnqueueChunk(Vector3D<int> pos)
     {
-        if (chunkProcessingByPos.ContainsKey(pos))
+        if (chunkByPos.ContainsKey(pos))
             return;
-        chunkProcessingByPos.Add(pos, new ChunkGenerationHandler(pos));
-        chunksToCalculatePoints.Add(pos);
+        ChunkGenData chunk = new(pos, 0, null);
+        chunkByPos.Add(pos, chunk);
+        chunksEnqueuedStage[0].Add(chunk);
     }
 
-    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="M:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.OnChunkRemoved(Silk.NET.Maths.Vector3D{System.Int32})"]'/>
-    public void OnChunkRemoved(Vector3D<int> pos)
+    /// <include file='ChunkClusterGenerationManager.xml' path='doc/members/member[@name="M:GalensUnified.CubicGrid.Framework.ChunkClusterGenerationManager.DiscardChunk(Silk.NET.Maths.Vector3D{System.Int32})"]'/>
+    public void DiscardChunk(Vector3D<int> pos)
     {
-        if (!chunkProcessingByPos.ContainsKey(pos))
+        if (!chunkByPos.ContainsKey(pos))
             return;
-        chunkProcessingByPos.Remove(pos);
+        chunkByPos.Remove(pos);
     }
 
-    private void UpdateChunkStateByStage(ChunkGenerationStage stage)
+    private bool UpdateChunkStateByStage(int stage)
     {
-        List<ChunkTask> tasks = stage switch
+        List<ChunkGenData> chunks = chunksProcessingStage[stage];
+        for (int i = chunks.Count - 1; i >= 0; i--)
         {
-            ChunkGenerationStage.Instantiated => chunksCalculatingPoints,
-            ChunkGenerationStage.PointsCalculated => chunksCalculatingNeighborPoints,
-            ChunkGenerationStage.ChunkNeighborsPointsCalculated => chunksRendering,
-            _ => throw new Exception("Stage not processable.")
-        };
-        for (int i = tasks.Count - 1; i >= 0; i--)
-        {
-            if (!tasks[i].Task.IsCompleted)
+            if (chunks[i].Task == null)
+                continue;
+            if (!chunks[i].Task!.IsCompleted)
                 continue;
             // Drop and ignore chunks that were removed from chunkProcessingByPos.
-            if (tasks[i].Task.IsCompletedSuccessfully && chunkProcessingByPos.ContainsKey(tasks[i].Chunk))
+            if (chunks[i].Task!.IsCompletedSuccessfully && chunkByPos.ContainsKey(chunks[i].Position))
             {
-                ChunkGenerationStage completedStage = NextStage(stage);
-                chunkProcessingByPos[tasks[i].Chunk].StageCompleted(completedStage);
-                List<Vector3D<int>>? nextQueue = GetQueueForStage(completedStage);
-                if (nextQueue != null)
-                    nextQueue.Add(tasks[i].Chunk);
+                ChunkGenData updatedData = chunks[i] with { Stage = chunks[i].Stage + 1, Task = null };
+                chunkByPos[chunks[i].Position] = updatedData;
+                StageCompleted?.Invoke(updatedData.Position, stage);
+                if (updatedData.Stage <= maxStage)
+                    chunksEnqueuedStage[updatedData.Stage].Add(updatedData);
                 else
-                    chunkProcessingByPos.Remove(tasks[i].Chunk);
+                    chunkByPos.Remove(chunks[i].Position);
             }
-            tasks.RemoveAt(i);
+            chunks.RemoveAt(i);
         }
+        return true; // Usless return type. Only for pretty while loop
     }
 
-    private static ChunkGenerationStage NextStage(ChunkGenerationStage stage) => stage switch
+    private bool QueueNextChunksByStage(int stage, CancelationCondition cancelationCondition)
     {
-        ChunkGenerationStage.Instantiated => ChunkGenerationStage.PointsCalculated,
-        ChunkGenerationStage.PointsCalculated => ChunkGenerationStage.ChunkNeighborsPointsCalculated,
-        ChunkGenerationStage.ChunkNeighborsPointsCalculated => ChunkGenerationStage.Rendered,
-        _ => throw new Exception("Stage not processable.")
-    };
-
-    private List<Vector3D<int>>? GetQueueForStage(ChunkGenerationStage stage) => stage switch
-    {
-        ChunkGenerationStage.PointsCalculated => chunksAwaitingNeighbors,
-        ChunkGenerationStage.ChunkNeighborsPointsCalculated => chunksToRender,
-        _ => null // Rendered or unknown = no next queue
-    };
-
-    delegate Task ProcessorType(Vector3D<int> chunk);
-
-    private bool QueueNextChunkByStage(ChunkGenerationStage stage)
-    {
-        if (!semaphore.Wait(0))
-            return false;
-
-        ProcessorType processorType;
-        List<Vector3D<int>> toProcess;
-        List<ChunkTask> toCollect;
-        bool needsNeighborTest = false;
-        switch(stage)
+        for (int i = chunksEnqueuedStage[stage].Count - 1; i >= 0; i --)
         {
-            case ChunkGenerationStage.Instantiated:
-                processorType = processor.CalculatePointsAsync;
-                toProcess = chunksToCalculatePoints;
-                toCollect = chunksCalculatingPoints;
-                break;
-            case ChunkGenerationStage.PointsCalculated:
-                processorType = processor.OnNeighborPointsCalculatedAsync;
-                toProcess = chunksAwaitingNeighbors;
-                toCollect = chunksCalculatingNeighborPoints;
-                needsNeighborTest = true;
-                break;
-            case ChunkGenerationStage.ChunkNeighborsPointsCalculated:
-                processorType = processor.RenderAsync;
-                toProcess = chunksToRender;
-                toCollect = chunksRendering;
-                break;
-            default:
-                throw new Exception("Stage not processable.");
-        }
+            if (cancelationCondition())
+                return false;
+            if (!semaphore.Wait(0))
+                return false;
 
-        if (toProcess.Count == 0)
-        {
-            semaphore.Release();
-            return false;
-        }
-
-        Vector3D<int> pos = toProcess[0];
-        if (needsNeighborTest && !neighborTest(pos))
-        {
-            semaphore.Release();
-            return false;
-        }
-        toProcess.Remove(pos);
-        toCollect.Add(new(processorType(pos).ContinueWith(t =>
-        {
-            semaphore.Release();
-            if (t.IsFaulted)
+            if (chunksEnqueuedStage[stage].Count == 0)
             {
-                ErrorThrown?.Invoke($"Error calculating chunk({pos}). {t.Exception.InnerException?.Message}");
-                chunksFailed.Add(pos);
+                semaphore.Release();
+                return true;
             }
-        }), pos));
+
+            ChunkGenData chunk = chunksEnqueuedStage[stage][0];
+            if (!processor.IsReadyForNextStage(chunk.Position, stage))
+            {
+                semaphore.Release();
+                continue;
+            }
+            chunksEnqueuedStage[stage].RemoveAt(0);
+            if (!chunkByPos.ContainsKey(chunk.Position))
+            {
+                semaphore.Release();
+                continue;
+            }
+            chunk = chunk with
+            {
+                Task = processor.ProcessStage(chunk.Position, stage).ContinueWith(t =>
+                {
+                    semaphore.Release();
+                    if (t.IsFaulted)
+                    {
+                        ErrorThrown?.Invoke($"Error processing chunk({chunk.Position}) stage :{chunk.Stage}. {t.Exception.InnerException?.Message}");
+                        chunksFailed.Add(chunk.Position);
+                    }
+                })
+            };
+            chunksProcessingStage[stage].Add(chunk);
+        }
         return true;
+    }
+
+    public ChunkClusterGenerationManager(IChunkProcessor chunkProcessor, int maxChunksProcessing)
+    {
+        processor = chunkProcessor;
+        semaphore = new(maxChunksProcessing);
+        maxStage = chunkProcessor.StagesCount - 1;
+        chunksProcessingStage = new List<ChunkGenData>[chunkProcessor.StagesCount];
+        for (int i = 0; i < chunkProcessor.StagesCount; i++)
+            chunksProcessingStage[i] = [];
+        chunksEnqueuedStage = new List<ChunkGenData>[chunkProcessor.StagesCount];
+        for (int i = 0; i < chunkProcessor.StagesCount; i++)
+            chunksEnqueuedStage[i] = [];
+
     }
 }
