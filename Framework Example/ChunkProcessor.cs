@@ -17,6 +17,7 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
 
     private readonly ChunkCluster cluster = cluster;
     private readonly Shader shader = shader;
+    private static readonly FastNoiseLite FNL;
 
     public int StagesCount => Enum.GetNames(typeof(ChunkGenerationStage)).Length;
 
@@ -38,22 +39,23 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
         for (int blockY = 0; blockY < chunkLength; blockY++)
         {
             Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunk;
+            float errosion = FNL.GetNoise(blockPos.X, blockPos.Y, blockPos.Z);
+            // Doesn't use Y(height) so the value is the same regardless of height.
+            float mountainous = (FNL.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
+            int mountainHeight = (int)(mountainous * Program.mountainHeight);
             int i = (blockZ * chunkLength + blockY) * chunkLength + blockX;
-            blocks[i] = blockPos.Y switch
-            {
-                > 0 => Air,   // Air above 0
-                0 => Grass,   // Grass floor
-                -2 => Air,    // Air slice
-                > -5 => Dirt, // Dirt between -5 and 0, the soil layer
-                -16 => Air,   // Air slice
-                -31 => Air,   // Air slice
-                -49 => Air,   // Air slice
-                _ => Stone,   // Stone default
-            };
-            blocks[i] = (Math.Abs(blockPos.Z) == blockPos.Y && Math.Abs(blockPos.X) % 10 > 5) ? Grass : blocks[i];
-            blocks[i] = (Math.Abs(blockPos.X) == blockPos.Y && Math.Abs(blockPos.Z) % 14 > 7) ? Grass : blocks[i];
+            if (blockPos.Y > mountainHeight)
+                blocks[i] = Air;
+            else if (blockPos.Y == mountainHeight)
+                blocks[i] = Grass;
+            else if (blockPos.Y > mountainHeight - 5)
+                blocks[i] = Dirt;
+            else
+                blocks[i] = Stone;
             blocks[i] = (Math.Abs(blockPos.X) % cluster.chunkLength == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
             blocks[i] = (Math.Abs(blockPos.Z) % cluster.chunkLength == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
+            if (errosion > 0.5f)
+                blocks[i] = Air;
         }
     }
 
@@ -62,5 +64,11 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
         int worldIndex = cluster.IndexByChunkCoord(cluster.ChunkCoordByGlobalPos(chunk));
         shader.RenderChunk((Vector3)chunk, worldIndex, cluster.GetChunkByPosition(chunk));
         return Task.CompletedTask;
+    }
+
+    static ChunkProcessor()
+    {
+        FNL = new(Program.seed);
+        FNL.SetFrequency(Program.worldScale);
     }
 }

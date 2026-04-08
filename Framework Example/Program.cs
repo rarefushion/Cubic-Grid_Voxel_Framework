@@ -15,7 +15,10 @@ static class Program
     const int chunkLength = 16;
     const int renderDistance = 24;
     const int WorldLengthInChunks = renderDistance * 2 + 1;
-    public static Vector3 camStartPos = Vector3.One * 1.5f;
+    public const int seed = 1337;
+    public const float worldScale = 0.01f;
+    public const int mountainHeight = 50;
+    public static Vector3 camStartPos = new(8, mountainHeight + 8, 8);
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
     // Runtime
