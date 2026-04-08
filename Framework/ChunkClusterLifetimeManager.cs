@@ -50,9 +50,9 @@ public class ChunkClusterLifetimeManager
 
     private Vector3D<int> ChunkByPos(Vector3D<int> pos) => new
         (
-            (int)MathF.Floor(pos.X / chunkLength) * chunkLength,
-            (int)MathF.Floor(pos.Y / chunkLength) * chunkLength,
-            (int)MathF.Floor(pos.Z / chunkLength) * chunkLength
+            (int)MathF.Floor((float)pos.X / chunkLength) * chunkLength,
+            (int)MathF.Floor((float)pos.Y / chunkLength) * chunkLength,
+            (int)MathF.Floor((float)pos.Z / chunkLength) * chunkLength
         );
 
     private void ProcessRegistry(CancelationCondition cancelationCondition)
