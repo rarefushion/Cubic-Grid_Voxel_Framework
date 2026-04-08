@@ -1,49 +1,54 @@
 using GalensUnified.CubicGrid.Core.Math;
 using Silk.NET.Maths;
 
+using ChunkUpdate = GalensUnified.CubicGrid.Framework.IChunkClusterRegistry.ChunkUpdate;
+
 namespace GalensUnified.CubicGrid.Framework;
 
 public class ChunkClusterRegistry(Vector3D<int> centrePosition, int chunkLength, int halfLengthInChunks) : IChunkClusterRegistry
 {
-    public int ChunkLength => chunkLength;
-    private int _halfLengthInChunks = halfLengthInChunks;
-    public int HalfLengthInChunks => _halfLengthInChunks;
-    private Vector3D<int> _centrePosition = centrePosition;
-    public Vector3D<int> CentrePosition => _centrePosition;
+    public bool IsProcessing { get; private set; } = false;
+    public int ChunkLength { get; private set; } = chunkLength;
+    public int HalfLengthInChunks { get; private set; } = halfLengthInChunks;
+    public Vector3D<int> CentrePosition { get; private set; } = centrePosition;
 
 
-    public HashSet<Vector3D<int>> chunks = [.. CubicNeighborhood.ExpandingCubePositions(centrePosition, new(halfLengthInChunks * chunkLength), chunkLength)];
-    public event Action<Vector3D<int>>? ChunkAdded;
-    public event Action<Vector3D<int>>? ChunkRemoved;
+    public HashSet<Vector3D<int>> chunks = [];
 
-    public void SetPosition(Vector3D<int> centrePosition)
+    public IEnumerable<ChunkUpdate> SetPosition(Vector3D<int> centrePosition)
     {
-        _centrePosition = centrePosition;
-        UpdateManagedChunks();
+        CentrePosition = centrePosition;
+        return UpdateManagedChunks();
     }
 
-    public void SetLoadDistance(int halfLengthInChunks)
+    public IEnumerable<ChunkUpdate> SetLoadDistance(int halfLengthInChunks)
     {
-        _halfLengthInChunks = halfLengthInChunks;
-        UpdateManagedChunks();
+        HalfLengthInChunks = halfLengthInChunks;
+        return UpdateManagedChunks();
     }
 
     public IEnumerable<Vector3D<int>> GetLoadedChunks() =>
         chunks;
 
-    private void UpdateManagedChunks()
+    private IEnumerable<ChunkUpdate> UpdateManagedChunks()
     {
-        HashSet<Vector3D<int>> newPositions = [.. CubicNeighborhood.ExpandingCubePositions(CentrePosition, new(HalfLengthInChunks * chunkLength), chunkLength)];
-        HashSet<Vector3D<int>> keysToRemove = [];
-        foreach (Vector3D<int> pos in chunks)
-            if (!newPositions.Contains(pos)) 
-                keysToRemove.Add(pos);
-
-        foreach (Vector3D<int> pos in keysToRemove)
-            ChunkRemoved?.Invoke(pos);
-        foreach (Vector3D<int> pos in newPositions)
-            if (!chunks.Contains(pos))
-                ChunkAdded?.Invoke(pos);
-        chunks = newPositions;
+        IsProcessing = true;
+        HashSet<Vector3D<int>> prevSet = [.. chunks];
+        foreach (Vector3D<int> chunk in CubicNeighborhood.ExpandingCubePositions(CentrePosition, new(HalfLengthInChunks * ChunkLength), ChunkLength))
+        {
+            if (!prevSet.Contains(chunk))
+            {
+                chunks.Add(chunk);
+                yield return new(true, chunk);
+            }
+            else
+                prevSet.Remove(chunk);
+        }
+        foreach (Vector3D<int> chunk in prevSet)
+        {
+            chunks.Remove(chunk);
+            yield return new(false, chunk);
+        }
+        IsProcessing = false;
     }
 }

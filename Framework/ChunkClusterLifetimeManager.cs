@@ -1,6 +1,8 @@
 using System.Numerics;
 using Silk.NET.Maths;
 
+using ChunkUpdate = GalensUnified.CubicGrid.Framework.IChunkClusterRegistry.ChunkUpdate;
+
 namespace GalensUnified.CubicGrid.Framework;
 
 /// <summary>
@@ -12,13 +14,16 @@ public class ChunkClusterLifetimeManager
 {
     /// <summary>Will be called when a chunk has been removed.</summary>
     public event Action<Vector3D<int>>? RemoveChunk;
+    /// <summary>Will be called when a chunk has been Added.</summary>
+    public event Action<Vector3D<int>>? AddedChunk;
     /// <summary>Chunks that in queue to be removed.</summary>
     public readonly List<Vector3D<int>> chunksToDestroy = [];
-    public readonly IChunkClusterRegistry loadedRegion;
+    public readonly IChunkClusterRegistry clusterRegistry;
     public readonly IChunkClusterGenerationManager generationManager;
 
     private readonly int chunkLength;
     private Vector3D<int> previousChunkPosition;
+    private IEnumerator<ChunkUpdate> chunkRegistryUpdater;
 
     /// <summary>
     /// Performs one full pass of the lifetime pipeline: Updates loaded chunks, destroys chunks and processes new chunks.
@@ -33,11 +38,13 @@ public class ChunkClusterLifetimeManager
         Vector3D<int> chunkPos = ChunkByPos(currentPosition);
         if (chunkPos != previousChunkPosition)
         {
-            loadedRegion.SetPosition(chunkPos);
+            chunkRegistryUpdater.Dispose();
+            chunkRegistryUpdater = clusterRegistry.SetPosition(chunkPos).GetEnumerator();
             previousChunkPosition = chunkPos;
         }
 
-        if (DestroyedChunks(cancelationCondition))
+        ProcessRegistry(cancelationCondition);
+        if (!clusterRegistry.IsProcessing)
             generationManager.ProcessChunks(cancelationCondition);
     }
 
@@ -48,29 +55,31 @@ public class ChunkClusterLifetimeManager
             (int)MathF.Floor(pos.Z / chunkLength) * chunkLength
         );
 
-    private bool DestroyedChunks(CancelationCondition cancelationCondition)
+    private void ProcessRegistry(CancelationCondition cancelationCondition)
     {
-        for (int i = chunksToDestroy.Count - 1; i >= 0; i--)
+        while (!cancelationCondition() && chunkRegistryUpdater.MoveNext())
         {
-            if (cancelationCondition())
-                return false;
-            Vector3D<int> chunk = chunksToDestroy[0];
-            RemoveChunk?.Invoke(chunk);
-            chunksToDestroy.Remove(chunk);
+            ChunkUpdate chunkUpdate = chunkRegistryUpdater.Current;
+            if (chunkUpdate.IsActive)
+            {
+                generationManager.EnqueueChunk(chunkUpdate.Position);
+                AddedChunk?.Invoke(chunkUpdate.Position);
+            }
+            else
+            {
+                generationManager.DiscardChunk(chunkUpdate.Position);
+                RemoveChunk?.Invoke(chunkUpdate.Position);
+            }
         }
-        return chunksToDestroy.Count == 0;
     }
 
-    public ChunkClusterLifetimeManager(int chunkLength, IChunkClusterRegistry loadedRegion, IChunkClusterGenerationManager generationManager)
+    public ChunkClusterLifetimeManager(int chunkLength, IChunkClusterRegistry clusterRegistry, IChunkClusterGenerationManager generationManager)
     {
         this.chunkLength = chunkLength;
-        this.loadedRegion = loadedRegion;
+        this.clusterRegistry = clusterRegistry;
         this.generationManager = generationManager;
 
-        this.loadedRegion.ChunkRemoved += chunksToDestroy.Add;
-        this.loadedRegion.ChunkRemoved += generationManager.DiscardChunk;
-        this.loadedRegion.ChunkAdded += generationManager.EnqueueChunk;
-        foreach (Vector3D<int> chunk in loadedRegion.GetLoadedChunks())
-            generationManager.EnqueueChunk(chunk);
+        previousChunkPosition = Vector3D<int>.Zero;
+        chunkRegistryUpdater = clusterRegistry.SetPosition(previousChunkPosition).GetEnumerator();
     }
 }
