@@ -26,7 +26,7 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
 
     public Task ProcessStage(Vector3D<int> chunk, int stage) => (ChunkGenerationStage)stage switch
     {
-        ChunkGenerationStage.CalculatingPoints => CalculatePointsAsync(chunk),
+        ChunkGenerationStage.CalculatingPoints => Task.Run(() => CalculatePointsAsync(chunk)),
         ChunkGenerationStage.Rendering => RenderAsync(chunk),
         _ => throw new Exception($"Stage '{stage}' doesn't exist.")
     };
