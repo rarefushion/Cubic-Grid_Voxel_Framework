@@ -1,4 +1,5 @@
 using System.Numerics;
+using GalensUnified.CubicGrid.Core.Math;
 using Silk.NET.Maths;
 
 using ChunkUpdate = GalensUnified.CubicGrid.Framework.IChunkClusterRegistry.ChunkUpdate;
@@ -45,7 +46,10 @@ public class ChunkClusterLifetimeManager
 
         ProcessRegistry(cancelationCondition);
         if (!clusterRegistry.IsProcessing)
+        {
+            PrioritizeClosest(currentPosition);
             generationManager.ProcessChunks(cancelationCondition);
+        }
     }
 
     private Vector3D<int> ChunkByPos(Vector3D<int> pos) => new
@@ -69,6 +73,24 @@ public class ChunkClusterLifetimeManager
             {
                 generationManager.DiscardChunk(chunkUpdate.Position);
                 RemoveChunk?.Invoke(chunkUpdate.Position);
+            }
+        }
+    }
+
+    private void PrioritizeClosest(Vector3D<int> pos)
+    {
+        bool found = false;
+        int prioritizedCount = generationManager.ChunksPrioritized.Count();
+        HashSet<Vector3D<int>> chunksProcessing = [.. generationManager.ChunksInPipeline];
+        foreach (Vector3D<int> chunk in CubicNeighborhood.ExpandingCubePositions(pos, new(clusterRegistry.HalfLengthInChunks * chunkLength), chunkLength))
+        {
+            if (found && prioritizedCount > 64) // 64 is arbitray. Should be based on something like maxChunksProcessing.
+                return;
+            if (chunksProcessing.Contains(chunk))
+            {
+                found = true;
+                prioritizedCount++;
+                generationManager.PrioritizeChunk(chunk);
             }
         }
     }
