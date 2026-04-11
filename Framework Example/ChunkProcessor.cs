@@ -11,7 +11,7 @@ public enum ChunkGenerationStage
     Rendering
 }
 
-public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcessor
+public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcessor<Vector3D<int>>
 {
     private readonly int chunkLength = cluster.chunkLength;
 

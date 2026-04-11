@@ -25,7 +25,7 @@ public class ChunkClusterGenerationManager : IChunkClusterGenerationManager
     /// <summary>Read-only view of chunks currently prioritized for a given stage.</summary>
     public readonly Queue<Vector3D<int>>[] priorityChunksStage;
     public IEnumerable<Vector3D<int>> ChunksPrioritized => priorityChunksStage.SelectMany(queue => queue);
-    public readonly IChunkProcessor processor;
+    public readonly IChunkProcessor<Vector3D<int>> processor;
 
     private readonly int maxStage;
 
@@ -138,7 +138,7 @@ public class ChunkClusterGenerationManager : IChunkClusterGenerationManager
         return true;
     }
 
-    public ChunkClusterGenerationManager(IChunkProcessor chunkProcessor, int maxChunksProcessing)
+    public ChunkClusterGenerationManager(IChunkProcessor<Vector3D<int>> chunkProcessor, int maxChunksProcessing)
     {
         processor = chunkProcessor;
         semaphore = new(maxChunksProcessing);
