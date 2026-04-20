@@ -99,16 +99,24 @@ static class Program
         // Chunk Managemeant
         ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks);
         ChunkProcessor processor = new(chunkCluster, shader);
-        ChunkClusterRegistry chunksLoadedHandler = new(BlockPosByVector3(camStartPos), chunkLength, renderDistance);
-        ChunkClusterGenerationManager generationManager = new(processor, Environment.ProcessorCount * 2);
-        ChunkClusterLifetimeManager lifetimeManager = new(chunkLength, chunksLoadedHandler, generationManager);
-        lifetimeManager.RemoveChunk += pos => shader.DeactivateChunk(chunkCluster.IndexByChunkCoord(chunkCluster.ChunkCoordByGlobalPos(pos)));
-        generationManager.ErrorThrown += Console.WriteLine;
+        ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor);
+        ChunkClusterDirector clusterRegistry = new(generationPipeline, chunkLength, renderDistance, BlockPosByVector3(camStartPos), 32);
         static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
         window.Render += dt =>
         {
             frameStart = DateTime.Now;
-            lifetimeManager.ProcessChunks(BlockPosByVector3(camPosition), OverTargtetFrameTime);
+
+            clusterRegistry.SetCentrePosition(BlockPosByVector3(camPosition));
+            if (OverTargtetFrameTime())
+                return;
+
+            foreach (ChunkDirectorUpdate chunk in clusterRegistry.ProcessChunks())
+            {
+                if (!chunk.IsActive)
+                    shader.DeactivateChunk(chunkCluster.IndexByChunkCoord(chunkCluster.ChunkCoordByGlobalPos(chunk.Position)));
+                if (OverTargtetFrameTime())
+                    return;
+            }
         };
 
         window.Render += dt => shader.Render
