@@ -5,6 +5,7 @@ using Microsoft.DotNet.PlatformAbstractions;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
+using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Windowing;
 
 using static BlockIDs;
@@ -60,6 +61,8 @@ static class Program
                 cursorVisible = !cursorVisible;
                 input.Mice[0].Cursor.CursorMode = cursorVisible ? CursorMode.Normal : CursorMode.Raw;
             }
+            if (key == Key.F3)
+                DebugRenderer.showDebugInfo = !DebugRenderer.showDebugInfo;
         };
         previousMousePosition = input.Mice[0].Position;
         input.Mice[0].MouseMove += (mouse, pos) => camRotation += GetCameraRotationDelta(mouse, pos, mouseSensitivity);
@@ -96,7 +99,13 @@ static class Program
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
-        // Chunk Managemeant
+        window.Render += dt => shader.Render
+        (
+            CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
+            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0),
+            (Vector2)window.Size
+        );
+        // Chunk Management
         ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks);
         ChunkProcessor processor = new(chunkCluster, shader);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor);
@@ -118,13 +127,16 @@ static class Program
                     return;
             }
         };
+        // Debug Info
+        ImGuiController guiController = new(graphics, window, input);
+        DebugRenderer.Load();
+        window.Render += delta =>
+        {
+            guiController.Update((float)delta);
+            DebugRenderer.OnRender(delta);
+            guiController.Render();
+        };
 
-        window.Render += dt => shader.Render
-        (
-            CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
-            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0),
-            (Vector2)window.Size
-        );
     }
 
     static Vector3D<int> BlockPosByVector3(Vector3 pos) =>
