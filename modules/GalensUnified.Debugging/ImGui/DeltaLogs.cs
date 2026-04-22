@@ -26,7 +26,7 @@ public class DeltaLogs
     /// The time data of this row.
     /// Often the average of some deltas.
     /// Will also be displayed as FPS (1/time).
-    /// It is assumed you called LogDelta in ms.
+    /// It is assumed you called LogDelta in seconds.
     /// </param>
     public record TimeTableRow(string Name, double Time);
     public interface IDefaultTimeTableRow { string Name { get; } }
@@ -119,7 +119,7 @@ public class DeltaLogs
     /// <summary>
     /// Draws a table with rows of Name, Time and FPS.
     /// Rows that are most likely made with the various GetAverage functions or the default constructors.
-    /// Time is assumed to be in ms.
+    /// Time is assumed to be in seconds.
     /// </summary>
     public void DrawImGuiTimeTable(List<TimeTableRow> rows)
     {
@@ -165,11 +165,12 @@ public class DeltaLogs
 
 
     /// <summary>Gets the average from the longest logged deltas.</summary>
-    public double GetAverageOfCount(int count) => logs
+    public double GetAverageOfCount(int count) => logs.Any() ? logs
         .OrderByDescending(x => x.Delta)
         .Take(count)
         .OrderBy(x => x.Recorded)
-        .Average(x => x.Delta);
+        .Average(x => x.Delta) :
+        0;
 
     /// <param name="name">The name used for the ImGUI table.</param>
     public DeltaLogs(string name)

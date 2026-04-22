@@ -15,7 +15,7 @@ public static class DebugRenderer
             new("5S FPS", new TimeSpan(0, 0, 5)),
             new("15S FPS", new TimeSpan(0, 0, 15)),
         ];
-    static readonly List<DeltaLogs.IDefaultTimeTableRow> defaultTimeTableRows =
+    public static readonly List<DeltaLogs.IDefaultTimeTableRow> defaultTimeTableRows =
         [
             new DeltaLogs.TotalAverageTimeTableRow("AVG"),
             new DeltaLogs.TopPercentTimeTableRow("1.0%", 1),
