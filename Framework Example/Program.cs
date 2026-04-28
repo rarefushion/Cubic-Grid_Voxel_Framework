@@ -14,7 +14,7 @@ static class Program
 {
     // Startup Values
     const int chunkLength = 16;
-    const int renderDistance = 24;
+    const int renderDistance = 16;
     const int WorldLengthInChunks = renderDistance * 2 + 1;
     public const int seed = 1337;
     public const float worldScale = 0.01f;
@@ -79,6 +79,10 @@ static class Program
         };
 
         // Create Graphics and Shader
+        const long chunkVolume = chunkLength * chunkLength * chunkLength;
+        const long worldVolume = checked(WorldLengthInChunks * WorldLengthInChunks * WorldLengthInChunks * chunkVolume);
+        if (worldVolume > int.MaxValue)
+            throw new IndexOutOfRangeException($"{typeof(ChunkCluster).Name} does not allow world volume > {int.MaxValue:N0}. Current: {worldVolume:N0}");
         GL graphics = window.CreateOpenGL();
         graphics.Enable(EnableCap.DepthTest);
         graphics.DepthFunc(DepthFunction.Less);
@@ -92,7 +96,7 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
-            WorldLengthInChunks,
+            (int)chunkVolume * 16 * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks 
             camNearPlane,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
@@ -102,8 +106,7 @@ static class Program
         window.Render += dt => shader.Render
         (
             CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
-            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0),
-            (Vector2)window.Size
+            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
         // Chunk Management
         ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks);
@@ -122,7 +125,10 @@ static class Program
             foreach (ChunkDirectorUpdate chunk in clusterRegistry.ProcessChunks())
             {
                 if (!chunk.IsActive)
-                    shader.DeactivateChunk(chunkCluster.IndexByChunkCoord(chunkCluster.ChunkCoordByGlobalPos(chunk.Position)));
+                {
+                    shader.DeactivateChunk((Vector3)chunk.Position);
+                    chunkCluster.RemoveChunk(chunk.Position);
+                }
                 if (OverTargtetFrameTime())
                     return;
             }

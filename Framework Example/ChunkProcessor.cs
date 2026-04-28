@@ -62,7 +62,7 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
     public Task RenderAsync(Vector3D<int> chunk, int stage)
     {
         int worldIndex = cluster.IndexByChunkCoord(cluster.ChunkCoordByGlobalPos(chunk));
-        shader.RenderChunk((Vector3)chunk, worldIndex, cluster.GetChunkByPosition(chunk));
+        shader.RenderChunk((Vector3)chunk, cluster.GetChunkByPosition(chunk));
         return Task.CompletedTask;
     }
 
