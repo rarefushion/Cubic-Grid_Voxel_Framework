@@ -10,7 +10,7 @@ public class ChunkGenerationPipeline<TChunkKey>(IChunkProcessor<TChunkKey> proce
     private readonly Dictionary<TChunkKey, ChunkGenerating<TChunkKey>> chunkByPos = [];
 
     public void StartChunk(TChunkKey toStart) =>
-        chunkByPos.Add(toStart, new ChunkGenerating<TChunkKey>(toStart, 0, processor.ProcessStage(toStart, 0)));
+        chunkByPos.Add(toStart, new ChunkGenerating<TChunkKey>(toStart, 0, StartChunkTask(toStart, 0)));
 
     public IEnumerable<ChunkGenerating<TChunkKey>> ProcessChunks()
     {
@@ -27,7 +27,7 @@ public class ChunkGenerationPipeline<TChunkKey>(IChunkProcessor<TChunkKey> proce
                         chunkByPos[chunk.Chunk] = chunk with
                         {
                             Stage = nextStage,
-                            Task = processor.ProcessStage(chunk.Chunk, nextStage)
+                            Task = StartChunkTask(chunk.Chunk, nextStage)
                         };
                     yield return chunk;
                 }
@@ -35,4 +35,11 @@ public class ChunkGenerationPipeline<TChunkKey>(IChunkProcessor<TChunkKey> proce
                     throw new Exception($"Chunk {chunk.Chunk} failed to process stage {chunk.Stage}.", chunk.Task.Exception);
             }
     }
+
+    public Task StartChunkTask(TChunkKey chunk, int stage) => processor.GetChunkTask(chunk, stage) switch
+    {
+        ChunkTaskType.Async<TChunkKey> async =>  Task.Run(() => async.ChunkTask(chunk, stage)),
+        ChunkTaskType.Synchronous<TChunkKey> sync =>  sync.ChunkTask(chunk, stage),
+        _ => throw new NotSupportedException()
+    };
 }

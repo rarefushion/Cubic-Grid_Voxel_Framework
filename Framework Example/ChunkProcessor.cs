@@ -24,14 +24,14 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
     public bool IsReadyForNextStage(Vector3D<int> chunk, int stage) =>
         true;
 
-    public Task ProcessStage(Vector3D<int> chunk, int stage) => (ChunkGenerationStage)stage switch
+    public ChunkTaskType GetChunkTask(Vector3D<int> chunk, int stage) => (ChunkGenerationStage)stage switch
     {
-        ChunkGenerationStage.CalculatingPoints => Task.Run(() => CalculatePointsAsync(chunk)),
-        ChunkGenerationStage.Rendering => RenderAsync(chunk),
+        ChunkGenerationStage.CalculatingPoints => new ChunkTaskType.Async<Vector3D<int>>(CalculatePointsAsync),
+        ChunkGenerationStage.Rendering => new ChunkTaskType.Synchronous<Vector3D<int>>(RenderAsync),
         _ => throw new Exception($"Stage '{stage}' doesn't exist.")
     };
 
-    public async Task CalculatePointsAsync(Vector3D<int> chunk)
+    public async Task CalculatePointsAsync(Vector3D<int> chunk, int stage)
     {
         Span<ushort> blocks = cluster.GetChunkByPosition(chunk);
         for (int blockZ = 0; blockZ < chunkLength; blockZ++)
@@ -59,7 +59,7 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
         }
     }
 
-    public Task RenderAsync(Vector3D<int> chunk)
+    public Task RenderAsync(Vector3D<int> chunk, int stage)
     {
         int worldIndex = cluster.IndexByChunkCoord(cluster.ChunkCoordByGlobalPos(chunk));
         shader.RenderChunk((Vector3)chunk, worldIndex, cluster.GetChunkByPosition(chunk));
