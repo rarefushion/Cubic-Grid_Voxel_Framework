@@ -11,11 +11,22 @@ public abstract record ChunkTaskType
     public record Async<TChunkKey>(ChunkTask<TChunkKey> ChunkTask) : ChunkTaskType;
 }
 
+public abstract record ChunkTaskGate
+{
+    /// <summary>Ready for the stage in question.</summary>
+    public record Proceed() : ChunkTaskGate;
+    /// <summary>Don't prceed with generation and the explicit reason.</summary>
+    public abstract record Halt : ChunkTaskGate
+    {
+        public record Complete() : Halt;
+    }
+}
+
 /// <summary>Defines how to create a chunk.</summary>
 public interface IChunkProcessor<TChunkKey>
 {
-    /// <summary>Number of stages.</summary>
-    int StagesCount { get; }
+    /// <summary>The <see cref="ChunkTaskGate"/> for the given chunk and it's stage.</summary>
+    ChunkTaskGate GetChunkTaskGate(TChunkKey chunk, int stage);
     /// <summary>The <see cref="ChunkTaskType"/> for the given chunk and it's stage.</summary>
     ChunkTaskType GetChunkTask(TChunkKey chunk, int stage);
 }

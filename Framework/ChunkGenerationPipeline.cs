@@ -1,10 +1,11 @@
 namespace GalensUnified.CubicGrid.Framework;
 
+using HaltGen = ChunkTaskGate.Halt;
+
 public class ChunkGenerationPipeline<TChunkKey>(IChunkProcessor<TChunkKey> processor) :
     IChunkGenerationPipeline<TChunkKey>
     where TChunkKey : notnull, IEquatable<TChunkKey>
 {
-    public int StagesCount => processor.StagesCount;
     public IEnumerable<ChunkGenerationState<TChunkKey>> ChunksInPipeline => chunkByPos.Values;
     private readonly IChunkProcessor<TChunkKey> processor = processor;
     private readonly Dictionary<TChunkKey, ChunkGenerationState<TChunkKey>.Processing> chunkByPos = [];
@@ -18,26 +19,27 @@ public class ChunkGenerationPipeline<TChunkKey>(IChunkProcessor<TChunkKey> proce
         foreach (ChunkGenerationState<TChunkKey>.Processing chunk in chunks)
             if (chunk.Task.IsCompleted)
             {
-                if (chunk.Task.IsCompletedSuccessfully)
+                if (!chunk.Task.IsCompletedSuccessfully)
+                    throw new Exception($"Chunk {chunk.Chunk} failed to process stage {chunk.Stage}.", chunk.Task.Exception);
+
+                int nextStage = chunk.Stage + 1;
+                switch (processor.GetChunkTaskGate(chunk.Chunk, nextStage))
                 {
-                    int nextStage = chunk.Stage + 1;
-                    if (nextStage >= StagesCount)
-                    {
+                    case HaltGen.Complete:
                         chunkByPos.Remove(chunk.Chunk);
                         yield return new ChunkGenerationState<TChunkKey>.Finalized(chunk.Chunk, nextStage);
-                    }
-                    else
-                    {
+                        break;
+                    case ChunkTaskGate.Proceed:
                         chunkByPos[chunk.Chunk] = chunk with
                         {
                             Stage = nextStage,
                             Task = StartChunkTask(chunk.Chunk, nextStage)
                         };
                         yield return chunkByPos[chunk.Chunk];
-                    }
+                        break;
+                    default:
+                        throw new NotSupportedException();
                 }
-                else
-                    throw new Exception($"Chunk {chunk.Chunk} failed to process stage {chunk.Stage}.", chunk.Task.Exception);
             }
     }
 

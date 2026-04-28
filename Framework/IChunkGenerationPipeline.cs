@@ -20,9 +20,6 @@ public abstract record ChunkGenerationState<TChunkKey>(TChunkKey Chunk, int Stag
 /// <typeparam name="TChunkKey">The type used to identify chunks, must be non-nullable and implement IEquatable.</typeparam>
 public interface IChunkGenerationPipeline<TChunkKey> where TChunkKey : notnull, IEquatable<TChunkKey>
 {
-    /// <summary>Number of stages.</summary>
-    int StagesCount { get; }
-
     /// <summary>Chunks currently in the pipeline processing.</summary>
     IEnumerable<ChunkGenerationState<TChunkKey>> ChunksInPipeline { get; }
 

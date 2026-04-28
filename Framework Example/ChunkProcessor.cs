@@ -19,10 +19,12 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
     private readonly Shader shader = shader;
     private static readonly FastNoiseLite FNL;
 
-    public int StagesCount => Enum.GetNames(typeof(ChunkGenerationStage)).Length;
-
-    public bool IsReadyForNextStage(Vector3D<int> chunk, int stage) =>
-        true;
+    public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
+    {
+        ChunkGenerationStage.CalculatingPoints => new ChunkTaskGate.Proceed(),
+        ChunkGenerationStage.Rendering => new ChunkTaskGate.Proceed(),
+        _ => new ChunkTaskGate.Halt.Complete()
+    };
 
     public ChunkTaskType GetChunkTask(Vector3D<int> chunk, int stage) => (ChunkGenerationStage)stage switch
     {
