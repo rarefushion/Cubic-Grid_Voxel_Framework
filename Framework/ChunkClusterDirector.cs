@@ -3,6 +3,8 @@ using Silk.NET.Maths;
 
 namespace GalensUnified.CubicGrid.Framework;
 
+using ChunkGenState = ChunkGenerationState<Vector3D<int>>;
+
 /// <summary>
 /// Tracks which chunks are active within a bounded cluster region, automatically evicting
 /// out-of-bounds chunks and scheduling new ones for generation as the centre position or
@@ -108,15 +110,25 @@ public class ChunkClusterDirector : IChunkClusterDirector
         if (!IsProcessing)
             yield break;
 
-        foreach (ChunkGenerating<Vector3D<int>> chunk in GenerationPipeline.ProcessChunks())
+        foreach (ChunkGenState chunkState in GenerationPipeline.ProcessChunks())
+        switch (chunkState)
         {
-            if (chunk.Stage == GenerationPipeline.StagesCount - 1)
+            case ChunkGenState.Processing chunk:
+                yield return chunkByPos[chunk.Chunk] = chunkByPos[chunk.Chunk] with
+                {
+                    Stage = chunk.Stage,
+                };
+                break;
+            case ChunkGenState.Finalized chunk:
                 semaphore.Release();
-            yield return chunkByPos[chunk.Chunk] = chunkByPos[chunk.Chunk] with
-            {
-                Stage = chunk.Stage,
-                IsGenerating = chunk.Stage != GenerationPipeline.StagesCount - 1
-            };
+                yield return chunkByPos[chunk.Chunk] = chunkByPos[chunk.Chunk] with
+                {
+                    Stage = chunk.Stage,
+                    IsGenerating = false
+                };
+                break;
+            default:
+                throw new NotSupportedException();
         }
 
         HashSet<Vector3D<int>> generating = [.. GenerationPipeline.ChunksInPipeline.Select(gen => gen.Chunk)];
