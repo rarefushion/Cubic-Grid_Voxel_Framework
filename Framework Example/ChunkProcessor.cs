@@ -29,7 +29,7 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
     public ChunkTaskType GetChunkTask(Vector3D<int> chunk, int stage) => (ChunkGenerationStage)stage switch
     {
         ChunkGenerationStage.CalculatingPoints => new ChunkTaskType.Async<Vector3D<int>>(CalculatePointsAsync),
-        ChunkGenerationStage.Rendering => new ChunkTaskType.Synchronous<Vector3D<int>>(RenderAsync),
+        ChunkGenerationStage.Rendering => new ChunkTaskType.Synchronous<Vector3D<int>>(RenderTask),
         _ => throw new Exception($"Stage '{stage}' doesn't exist.")
     };
 
@@ -61,11 +61,22 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader) : IChunkProcess
         }
     }
 
-    public Task RenderAsync(Vector3D<int> chunk, int stage)
+    public Task RenderTask(Vector3D<int> chunk, int stage)
     {
-        int worldIndex = cluster.IndexByChunkCoord(cluster.ChunkCoordByGlobalPos(chunk));
         shader.RenderChunk((Vector3)chunk, cluster.GetChunkByPosition(chunk));
         return Task.CompletedTask;
+    }
+
+    public void CullReRender(Vector3D<int> chunk)
+    {
+        Span<ushort> negZChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[0] * chunkLength));
+        Span<ushort> posZChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[1] * chunkLength));
+        Span<ushort> posYChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[2] * chunkLength));
+        Span<ushort> negYChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[3] * chunkLength));
+        Span<ushort> negXChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[4] * chunkLength));
+        Span<ushort> posXChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[5] * chunkLength));
+        shader.DeactivateChunk((Vector3)chunk);
+        shader.RenderChunk((Vector3)chunk, BlockCulling.CullChunk(cluster.GetChunkByPosition(chunk), chunkLength, negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk));
     }
 
     static ChunkProcessor()

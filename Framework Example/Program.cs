@@ -14,7 +14,7 @@ static class Program
 {
     // Startup Values
     const int chunkLength = 16;
-    const int renderDistance = 16;
+    const int renderDistance = 20;
     const int WorldLengthInChunks = renderDistance * 2 + 1;
     public const int seed = 1337;
     public const float worldScale = 0.01f;
@@ -129,6 +129,13 @@ static class Program
                     case ChunkDirectorUpdate.Deactivated chunk:
                         shader.DeactivateChunk((Vector3)chunk.Chunk);
                         chunkCluster.RemoveChunk(chunk.Chunk);
+                        // Neighbors to this chunk will have holes if they were culled.
+                        break;
+                    case ChunkDirectorUpdate.GenerationComplete chunk:
+                        if (chunk.Cullable)
+                            processor.CullReRender(chunk.Chunk);
+                        foreach (Vector3D<int> neighbor in chunk.CullNeighbors)
+                            processor.CullReRender(neighbor);
                         break;
                 }
                 if (OverTargtetFrameTime())
@@ -141,13 +148,13 @@ static class Program
         window.Render += delta =>
         {
             guiController.Update((float)delta);
-            DebugRenderer.OnRender(delta);
+            DebugRenderer.OnRender(delta, generationPipeline.ChunksInPipeline.Count());
             guiController.Render();
         };
 
     }
 
-    static Vector3D<int> BlockPosByVector3(Vector3 pos) =>
+    public static Vector3D<int> BlockPosByVector3(Vector3 pos) =>
         new((int)pos.X, (int)pos.Y, (int)pos.Z);
 
     /// <summary>Calculates the camera rotation every frame.</summary>

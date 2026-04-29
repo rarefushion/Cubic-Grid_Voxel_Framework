@@ -38,7 +38,7 @@ public static class DebugRenderer
                 AddDeltaTable(table, defaultTimeTableRows);
     }
 
-    public static void OnRender(double delta)
+    public static void OnRender(double delta, int chunksGenerating)
     {
         if (showDefaultFPS)
             foreach (DeltaLogs table in defaultFPSTables)
@@ -48,6 +48,7 @@ public static class DebugRenderer
             return;
 
         ImGui.Begin("Debug");
+        ImGui.Text($"Generating {chunksGenerating} chunks.");
         if (showDeltaLogs)
         {
             foreach (DeltaLogs logs in frameTimesByTableName.Values)

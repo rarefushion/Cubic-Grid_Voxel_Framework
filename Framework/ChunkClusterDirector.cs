@@ -119,9 +119,46 @@ public class ChunkClusterDirector : IChunkClusterDirector
                     Stage = chunk.Stage,
                 };
                 break;
-            case ChunkGenState.Finalized chunk:
+            case ChunkGenState.Finalized State:
                 semaphore.Release();
-                yield return chunkByPos[chunk.Chunk] = new ChunkDirectorUpdate.GenerationComplete(chunk.Chunk);
+                List<Vector3D<int>> neighborsCullable = [];
+                // Is the finalized chunk cullable
+                bool cullable = true;
+                for (int rootD = 0; rootD < 6; rootD++)
+                {
+                    // First 6 of MooreNeighborhood are faces.
+                    Vector3D<int> neighbor = State.Chunk + (CubicNeighborhood.MooreNeighborhood[rootD] * ChunkLength);
+                    if
+                    (
+                        !chunkByPos.TryGetValue(neighbor, out ChunkDirectorUpdate? NUpdate) ||
+                        NUpdate is not ChunkDirectorUpdate.GenerationComplete
+                    )
+                    {
+                        cullable = false;
+                        continue;
+                    }
+                    // Is neighbor cullable
+                    bool neighborCullable = true;
+                    for (int neighborD = 0; neighborD < 6; neighborD++)
+                    {
+                        Vector3D<int> nieghborNeighbor = neighbor + (CubicNeighborhood.MooreNeighborhood[neighborD] * ChunkLength);
+                        if (nieghborNeighbor == State.Chunk)
+                            continue;
+                        if
+                        (
+                            !chunkByPos.TryGetValue(nieghborNeighbor, out ChunkDirectorUpdate? NNUpdate) ||
+                            NNUpdate is not ChunkDirectorUpdate.GenerationComplete
+                        )
+                        {
+                            neighborCullable = false;
+                            break;
+                        }
+                    }
+                    if (neighborCullable)
+                        neighborsCullable.Add(neighbor);
+                }
+                // Shouldn't be storing cullable states as they will become stale.
+                yield return chunkByPos[State.Chunk] = new ChunkDirectorUpdate.GenerationComplete(State.Chunk, cullable, [.. neighborsCullable]);
                 break;
             default:
                 throw new NotSupportedException();
