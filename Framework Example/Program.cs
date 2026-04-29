@@ -122,12 +122,14 @@ static class Program
             if (OverTargtetFrameTime())
                 return;
 
-            foreach (ChunkDirectorUpdate chunk in clusterRegistry.ProcessChunks())
+            foreach (ChunkDirectorUpdate update in clusterRegistry.ProcessChunks())
             {
-                if (!chunk.IsActive)
+                switch (update)
                 {
-                    shader.DeactivateChunk((Vector3)chunk.Position);
-                    chunkCluster.RemoveChunk(chunk.Position);
+                    case ChunkDirectorUpdate.Deactivated chunk:
+                        shader.DeactivateChunk((Vector3)chunk.Chunk);
+                        chunkCluster.RemoveChunk(chunk.Chunk);
+                        break;
                 }
                 if (OverTargtetFrameTime())
                     return;

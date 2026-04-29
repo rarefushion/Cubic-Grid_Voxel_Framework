@@ -3,14 +3,15 @@ using Silk.NET.Maths;
 namespace GalensUnified.CubicGrid.Framework;
 
 /// <summary>Represents a change within a chunk Director.</summary>
-/// <param name="IsActive">True if chunk is in the Director.</param>
-/// <param name="IsGenerating">True if chunk is in generation pipeline.</param>
-/// <param name="Stage">
-/// The current stage of this chunk in it's generation pipeline.
-/// Should be max if <paramref name="IsGenerating"/> is false.
-/// </param>
-/// <param name="Position">Position of the chunk.</param>
-public record ChunkDirectorUpdate(bool IsActive, bool IsGenerating, int Stage, Vector3D<int> Position);
+public abstract record ChunkDirectorUpdate(Vector3D<int> Chunk)
+{
+    /// <summary>The chunk is generating <see cref="Stage"/>.</summary>
+    public record Generating(Vector3D<int> Chunk, int Stage) : ChunkDirectorUpdate(Chunk);
+    /// <summary>The chunk has finished generating.</summary>
+    public record GenerationComplete(Vector3D<int> Chunk) : ChunkDirectorUpdate(Chunk);
+    /// <summary>The Director has deregistered the chunk.</summary>
+    public record Deactivated(Vector3D<int> Chunk) : ChunkDirectorUpdate(Chunk);
+}
 
 /// <summary>Tracks which chunks are active and unloads chunks that are out of bounds.</summary>
 public interface IChunkClusterDirector

@@ -114,18 +114,14 @@ public class ChunkClusterDirector : IChunkClusterDirector
         switch (chunkState)
         {
             case ChunkGenState.Processing chunk:
-                yield return chunkByPos[chunk.Chunk] = chunkByPos[chunk.Chunk] with
+                yield return chunkByPos[chunk.Chunk] = (ChunkDirectorUpdate.Generating)chunkByPos[chunk.Chunk] with
                 {
                     Stage = chunk.Stage,
                 };
                 break;
             case ChunkGenState.Finalized chunk:
                 semaphore.Release();
-                yield return chunkByPos[chunk.Chunk] = chunkByPos[chunk.Chunk] with
-                {
-                    Stage = chunk.Stage,
-                    IsGenerating = false
-                };
+                yield return chunkByPos[chunk.Chunk] = new ChunkDirectorUpdate.GenerationComplete(chunk.Chunk);
                 break;
             default:
                 throw new NotSupportedException();
@@ -137,10 +133,9 @@ public class ChunkClusterDirector : IChunkClusterDirector
         {
             if (generating.Contains(chunk))
                 yield break;
-            ChunkDirectorUpdate toReturn = chunkByPos[chunk] with { IsActive = false };
             chunkByPos.Remove(chunk);
             toRemove.Remove(chunk);
-            yield return toReturn;
+            yield return new ChunkDirectorUpdate.Deactivated(chunk);
         }
 
         while (toAdd.Count > 0 && semaphore.Wait(0))
@@ -148,7 +143,7 @@ public class ChunkClusterDirector : IChunkClusterDirector
             Vector3D<int> chunk = toAdd.Dequeue();
             if (chunkByPos.ContainsKey(chunk))
                 throw new InvalidOperationException($"Chunk {chunk} is already being tracked. This should never happen.");
-            chunkByPos[chunk] = new ChunkDirectorUpdate(true, true, 0, chunk);
+            chunkByPos[chunk] = new ChunkDirectorUpdate.Generating(chunk, 0);
             GenerationPipeline.StartChunk(chunk);
             yield return chunkByPos[chunk];
         }
