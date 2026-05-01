@@ -96,7 +96,7 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             chunkLength,
-            (int)chunkVolume * 16 * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks 
+            (int)chunkVolume * BlockInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
             camNearPlane,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
@@ -108,9 +108,26 @@ static class Program
             CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
             CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
+        // Sun
+        Vector3 sunColor = new(1f, 0.9f, 1f);
+        Vector3 sunDirection = new // Each axis rotation is scaled -1 to +1 (pos = -direction * distance)
+            (
+                (float)Random.Shared.NextDouble() * 2.0f - 1.0f,
+                (float)Random.Shared.NextDouble() * -.8f - 0.1f, // Puts height between -0.1 and -0.9
+                (float)Random.Shared.NextDouble() * 2.0f - 1.0f
+            );
+        float sunScale = 250f;
+        float sunDistance = 1000f;
+        Sun.Load(graphics, sunColor, sunDirection, sunScale, sunDistance);
+        window.Render += dt => Sun.Draw
+        (
+            graphics,
+            CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
+            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
+        );
         // Chunk Management
         ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks);
-        ChunkProcessor processor = new(chunkCluster, shader);
+        ChunkProcessor processor = new(chunkCluster, shader, sunDirection, 0.3f, 0.6f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor);
         ChunkClusterDirector clusterRegistry = new(generationPipeline, chunkLength, renderDistance, BlockPosByVector3(camStartPos), 32);
         static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
@@ -155,7 +172,6 @@ static class Program
             DebugRenderer.OnRender(delta, generationPipeline.ChunksInPipeline.Count());
             guiController.Render();
         };
-
     }
 
     public static Vector3D<int> BlockPosByVector3(Vector3 pos) =>
