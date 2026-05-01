@@ -1,5 +1,6 @@
 using System.Numerics;
 using Silk.NET.Maths;
+using GalensUnified.CubicGrid.Core;
 using static GalensUnified.CubicGrid.Core.Math.RegionMath;
 
 namespace GalensUnified.CubicGrid.Framework;
