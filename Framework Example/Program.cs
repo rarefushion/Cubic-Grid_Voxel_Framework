@@ -131,6 +131,10 @@ static class Program
                         chunkCluster.RemoveChunk(chunk.Chunk);
                         // Neighbors to this chunk will have holes if they were culled.
                         break;
+                    case ChunkDirectorUpdate.Generating chunk:
+                        if (chunk.Stage == 0)
+                            chunkCluster.AddChunk(chunk.Chunk);
+                        break;
                     case ChunkDirectorUpdate.GenerationComplete chunk:
                         if (chunk.Cullable)
                             processor.CullReRender(chunk.Chunk);

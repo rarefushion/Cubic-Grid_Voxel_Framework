@@ -1,11 +1,10 @@
-using System.Numerics;
 using Silk.NET.Maths;
 using static GalensUnified.CubicGrid.Core.Math.RegionMath;
 
 namespace GalensUnified.CubicGrid.Framework;
 
 /// <summary>Manages a specified number of chunks allowing retrieval via their position.</summary>
-public class ChunkCluster
+public partial class ChunkCluster
 {
     public readonly int chunkLength;
     public readonly int chunkVolume;
@@ -13,6 +12,8 @@ public class ChunkCluster
     public readonly int clusterChunkLength;
     public readonly int clusterLength;
     public readonly int blockCount;
+
+    public readonly HashSet<Vector3D<int>> activeChunks = [];
 
     private readonly ushort[] flattenedChunks;
 
@@ -24,9 +25,15 @@ public class ChunkCluster
     public Span<ushort> GetChunkByPosition(Vector3D<int> pos) =>
         GetChunkByIndex(IndexByChunkCoord(ChunkCoordByGlobalPos(pos)));
 
+    public void AddChunk(Vector3D<int> pos) =>
+        activeChunks.Add(pos);
+
     /// <summary>Sets the entire specified chunk to Air.</summary>
-    public void RemoveChunk(Vector3D<int> pos) =>
+    public void RemoveChunk(Vector3D<int> pos)
+    {
         GetChunkByPosition(pos).Clear();
+        activeChunks.Remove(pos);
+    }
 
     /// <summary>
     /// Calculates the chunk coordinate (grid address) by dividing a position by the chunk size.
