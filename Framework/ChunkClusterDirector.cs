@@ -23,6 +23,7 @@ public class ChunkClusterDirector : IChunkClusterDirector
     public int ChunkLength { get; }
     /// <summary>The number of chunks from the centre to the edge of the cluster.</summary>
     public int HalfLengthInChunks { get; private set; }
+    public int HalfHeightInChunks { get; private set; }
     /// <summary>The centre position of the cluster, snapped to the nearest chunk boundary.</summary>
     public Vector3D<int> CentrePosition { get; private set; }
 
@@ -87,12 +88,14 @@ public class ChunkClusterDirector : IChunkClusterDirector
         IEnumerable<Vector3D<int>> newChunks = CubicNeighborhood.ExpandingCubePositions
             (
                 CentrePosition,
-                new(HalfLengthInChunks * ChunkLength),
+                new(HalfLengthInChunks * ChunkLength, HalfHeightInChunks * ChunkLength, HalfLengthInChunks * ChunkLength),
                 ChunkLength
             );
+        HashSet<Vector3D<int>> Added = [];
         foreach (Vector3D<int> chunk in newChunks)
-            if (!toRemove.Remove(chunk))
-                toAdd.Enqueue(chunk); // if chunk didn't exist
+            if (!toRemove.Remove(chunk)) // if chunk didn't exist
+                if (Added.Add(chunk) && !chunkByPos.ContainsKey(chunk)) // ExpanddingCubePositions can duplicate positions. Need to refactor it.
+                    toAdd.Enqueue(chunk);
     }
 
     /// <summary>
@@ -204,6 +207,7 @@ public class ChunkClusterDirector : IChunkClusterDirector
         IChunkGenerationPipeline<Vector3D<int>> generationPipeline,
         int chunkLength,
         int clusterHalfLengthInChunks,
+        int clusterHalfHeightInChunks,
         Vector3D<int> centrePosition,
         int maxGenerating
     )
@@ -211,6 +215,7 @@ public class ChunkClusterDirector : IChunkClusterDirector
         GenerationPipeline = generationPipeline;
         ChunkLength = chunkLength;
         HalfLengthInChunks = clusterHalfLengthInChunks;
+        HalfHeightInChunks = clusterHalfHeightInChunks;
         CentrePosition = centrePosition;
         semaphore = new(maxGenerating);
         UpdateManagedChunks();

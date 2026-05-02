@@ -1,4 +1,5 @@
 ﻿using System.Numerics;
+using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.CubicGrid.Renderer.NET;
 using Microsoft.DotNet.PlatformAbstractions;
@@ -14,11 +15,15 @@ static class Program
 {
     // Startup Values
     const int chunkLength = 16;
-    const int renderDistance = 20;
+    const int renderDistance = 32;
+    const int renderHeight = 4;
+    const bool lockGenerationHeight = true; // Disable for infinite Downward generation
+    const int WorldHeightInChunks = renderHeight * 2 + 1;
     const int WorldLengthInChunks = renderDistance * 2 + 1;
     public const int seed = 1337;
     public const float worldScale = 0.01f;
     public const int mountainHeight = 50;
+    const int lockedGenerationHeight = mountainHeight - (renderHeight * chunkLength);
     public static Vector3 camStartPos = new(8, mountainHeight + 8, 8);
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
@@ -80,7 +85,7 @@ static class Program
 
         // Create Graphics and Shader
         const long chunkVolume = chunkLength * chunkLength * chunkLength;
-        const long worldVolume = checked(WorldLengthInChunks * WorldLengthInChunks * WorldLengthInChunks * chunkVolume);
+        const long worldVolume = checked(WorldLengthInChunks * WorldLengthInChunks * WorldHeightInChunks * chunkVolume);
         if (worldVolume > int.MaxValue)
             throw new IndexOutOfRangeException($"{typeof(ChunkCluster).Name} does not allow world volume > {int.MaxValue:N0}. Current: {worldVolume:N0}");
         GL graphics = window.CreateOpenGL();
@@ -126,16 +131,19 @@ static class Program
             CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
         // Chunk Management
-        ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks);
+        ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks, WorldHeightInChunks);
         ChunkProcessor processor = new(chunkCluster, shader, sunDirection, 0.3f, 0.6f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor);
-        ChunkClusterDirector clusterRegistry = new(generationPipeline, chunkLength, renderDistance, BlockPosByVector3(camStartPos), 32);
+        ChunkClusterDirector clusterRegistry = new(generationPipeline, chunkLength, renderDistance, renderHeight, BlockPosByVector3(camStartPos), 32);
         static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
         window.Render += dt =>
         {
             frameStart = DateTime.Now;
 
-            clusterRegistry.SetCentrePosition(BlockPosByVector3(camPosition));
+            Vector3D<int> worldCenter = camPosition.Floor();
+            if (lockGenerationHeight)
+            worldCenter.Y = lockedGenerationHeight;
+            clusterRegistry.SetCentrePosition(worldCenter);
             if (OverTargtetFrameTime())
                 return;
 

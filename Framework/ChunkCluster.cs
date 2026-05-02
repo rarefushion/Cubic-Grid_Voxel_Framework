@@ -1,5 +1,4 @@
 using Silk.NET.Maths;
-using static GalensUnified.CubicGrid.Core.Math.RegionMath;
 
 namespace GalensUnified.CubicGrid.Framework;
 
@@ -10,7 +9,9 @@ public partial class ChunkCluster
     public readonly int chunkVolume;
     public readonly int chunkCount;
     public readonly int clusterChunkLength;
+    public readonly int clusterChunkHeight;
     public readonly int clusterLength;
+    public readonly int clusterHeight;
     public readonly int blockCount;
 
     public readonly HashSet<Vector3D<int>> activeChunks = [];
@@ -40,7 +41,15 @@ public partial class ChunkCluster
     /// First wrapping the position into the local world space.
     /// </summary>
     public Vector3D<int> ChunkCoordByGlobalPos(Vector3D<int> pos) =>
-        ChunkCoordByLocalPos(LocalPosByGlobalPos(pos, clusterLength));
+        ChunkCoordByLocalPos(LocalPosByGlobalPos(pos));
+
+
+    public Vector3D<int> LocalPosByGlobalPos(Vector3D<int> pos) => new
+        (
+            ((pos.X % clusterLength) + clusterLength) % clusterLength,
+            ((pos.Y % clusterHeight) + clusterHeight) % clusterHeight,
+            ((pos.Z % clusterLength) + clusterLength) % clusterLength
+        );
 
     /// <summary>Calculates the chunk coordinate (grid address) by dividing a position by the chunk size.</summary>
     public Vector3D<int> ChunkCoordByLocalPos(Vector3D<int> pos) =>
@@ -48,18 +57,20 @@ public partial class ChunkCluster
 
     /// <summary>Calculates the 1D index of a chunk coordinate (grid address).</summary>
     public int IndexByChunkCoord(Vector3D<int> coord) =>
-        ((coord.Z * clusterChunkLength + coord.Y) * clusterChunkLength + coord.X) * chunkVolume;
+        ((coord.Z * clusterChunkHeight + coord.Y) * clusterChunkLength + coord.X) * chunkVolume;
 
     /// <param name="chunkLength">The length of a single chunk. In other words the cube root of the chunk's volume.</param>
     /// <param name="clusterChunkLength">Number of chunks along each axis, allowing for a non cubic cluster.</param>
-    public ChunkCluster(int chunkLength, int clusterChunkLength)
+    public ChunkCluster(int chunkLength, int clusterChunkLength, int clusterChunkHeight)
     {
         this.chunkLength = chunkLength;
         this.chunkVolume = chunkLength * chunkLength * chunkLength;
         this.clusterChunkLength = clusterChunkLength;
-        this.chunkCount = clusterChunkLength * clusterChunkLength * clusterChunkLength;
+        this.clusterChunkHeight = clusterChunkHeight;
+        this.chunkCount = checked(clusterChunkLength * clusterChunkHeight * clusterChunkLength);
         this.clusterLength = clusterChunkLength * chunkLength;
-        this.blockCount = chunkVolume * chunkCount;
+        this.clusterHeight = clusterChunkHeight * chunkLength;
+        this.blockCount = checked(chunkVolume * chunkCount);
         this.flattenedChunks = new ushort[blockCount];
     }
 }
