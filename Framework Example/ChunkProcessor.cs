@@ -75,9 +75,9 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
 
     public Task RenderTask(Vector3D<int> chunk, int stage)
     {
-        BlockInstance[] blocks = BlockCulling.CullSingleChunk(cluster.GetChunkByPosition(chunk), chunkLength);
-        blocks = ShadeBlocks(blocks, chunk);
-        shader.RenderChunk((Vector3)chunk, blocks);
+        FaceInstance[] faces = BlockCulling.CullSingleChunk(cluster.GetChunkByPosition(chunk), chunkLength);
+        faces = ShadeBlocks(faces, chunk);
+        shader.RenderChunk((Vector3)chunk, faces);
         return Task.CompletedTask;
     }
 
@@ -92,26 +92,23 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
         Span<ushort> posXChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[5] * chunkLength));
 
         shader.DeactivateChunk((Vector3)chunk);
-        BlockInstance[] blocks = BlockCulling.CullChunk(cluster.GetChunkByPosition(chunk), chunkLength, negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
-        blocks = ShadeBlocks(blocks, chunk);
-        shader.RenderChunk((Vector3)chunk, blocks);
+        FaceInstance[] faces = BlockCulling.CullChunk(cluster.GetChunkByPosition(chunk), chunkLength, negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
+        faces = ShadeBlocks(faces, chunk);
+        shader.RenderChunk((Vector3)chunk, faces);
     }
 
-    public BlockInstance[] ShadeBlocks(BlockInstance[] blocks, Vector3D<int> chunk)
+    public FaceInstance[] ShadeBlocks(FaceInstance[] faces, Vector3D<int> chunk)
     {
-        for (int b = 0; b < blocks.Length; b++)
+        for (int f = 0; f < faces.Length; f++)
         {
-            float[] shading = [1,1,1,1,1,1];
-            for (int f = 0; f < 6; f++)
-            {
-                if (cluster.Raycast((Vector3)chunk + blocks[b].position + FaceCenters[f], -sun).Block != Air)
-                    shading[f] -= sunOccludedShade;
-                if (cluster.Raycast((Vector3)chunk + blocks[b].position + FaceCenters[f], Vector3.UnitY).Block != Air)
-                    shading[f] -= skyOccludedShade;
-            }
-            blocks[b] = new(blocks[b].position, blocks[b].block, shading);
+            float brightness = faces[f].brightness;
+            if (cluster.Raycast((Vector3)chunk + faces[f].position + FaceCenters[faces[f].face], -sun).Block != Air)
+                brightness -= sunOccludedShade;
+            if (cluster.Raycast((Vector3)chunk + faces[f].position + FaceCenters[faces[f].face], Vector3.UnitY).Block != Air)
+                brightness -= skyOccludedShade;
+            faces[f] = new(faces[f].position, faces[f].block, brightness, faces[f].face);
         }
-        return blocks;
+        return faces;
     }
 
     static ChunkProcessor()
