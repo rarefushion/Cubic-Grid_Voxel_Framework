@@ -18,23 +18,40 @@ public partial class ChunkCluster
 
     private readonly ushort[] flattenedChunks;
 
-    /// <summary>Fetches a chunk (Span<ushort>) that can be directly modified.</summary>
+    /// <summary>Fetches a chunk Span{ushort} that can be directly modified.</summary>
     private Span<ushort> GetChunkByIndex(int index) =>
         flattenedChunks.AsSpan(index, chunkVolume);
 
-    /// <summary>Fetches a chunk (Span<ushort>) that can be directly modified.</summary>
+    /// <summary>Fetches a chunk Span{ushort} that can be directly modified.</summary>
+    /// <remarks>
+    /// The world is wrapped so this can return a chunk at another position.
+    /// Consider using <see cref="CheckedGetChunk"/>.
+    /// </remarks>
     public Span<ushort> GetChunkByPosition(Vector3D<int> pos) =>
         GetChunkByIndex(IndexByChunkCoord(ChunkCoordByGlobalPos(pos)));
 
+    /// <summary>Fetches a chunk Span{ushort} that can be directly modified only if it's active.</summary>
+    /// <returns>The chunk Span{ushort} if <see cref="IsActive"/> is true. If false an empty span.</returns>
+    public Span<ushort> CheckedGetChunk(Vector3D<int> pos) =>
+        IsActive(pos)
+            ? GetChunkByPosition(pos)
+            : [];
+
+    /// <summary>Registers a chunk as active inside <see cref="activeChunks"/>.</summary>
+    /// <remarks>Simple tells the cluster it's active. To register blocks use <see cref="GetChunkByPosition"/>.</remarks>
     public void AddChunk(Vector3D<int> pos) =>
         activeChunks.Add(pos);
 
-    /// <summary>Sets the entire specified chunk to Air.</summary>
+    /// <summary>Sets the entire specified chunk to Air and deregisters from <see cref="activeChunks"/>.</summary>
     public void RemoveChunk(Vector3D<int> pos)
     {
         GetChunkByPosition(pos).Clear();
         activeChunks.Remove(pos);
     }
+
+    /// <summary>Determines if the <paramref name="chunk"/> is active. Uses <see cref="activeChunks"/>. </summary>
+    public bool IsActive(Vector3D<int> chunk) =>
+        activeChunks.Contains(chunk);
 
     /// <summary>
     /// Calculates the chunk coordinate (grid address) by dividing a position by the chunk size.

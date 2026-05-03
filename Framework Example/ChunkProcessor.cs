@@ -75,7 +75,7 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
 
     public Task RenderTask(Vector3D<int> chunk, int stage)
     {
-        FaceInstance[] faces = BlockCulling.CullSingleChunk(cluster.GetChunkByPosition(chunk), chunkLength);
+        FaceInstance[] faces = cluster.CullChunk(chunk);
         faces = ShadeBlocks(faces, chunk);
         shader.RenderChunk((Vector3)chunk, faces);
         return Task.CompletedTask;
@@ -83,16 +83,8 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
 
     public void CullReRender(Vector3D<int> chunk)
     {
-        // Get neighbors
-        Span<ushort> negZChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[0] * chunkLength));
-        Span<ushort> posZChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[1] * chunkLength));
-        Span<ushort> posYChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[2] * chunkLength));
-        Span<ushort> negYChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[3] * chunkLength));
-        Span<ushort> negXChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[4] * chunkLength));
-        Span<ushort> posXChunk = cluster.GetChunkByPosition(chunk + Program.BlockPosByVector3(BlockCulling.directions[5] * chunkLength));
-
         shader.DeactivateChunk((Vector3)chunk);
-        FaceInstance[] faces = BlockCulling.CullChunk(cluster.GetChunkByPosition(chunk), chunkLength, negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
+        FaceInstance[] faces = cluster.CullChunk(chunk);
         faces = ShadeBlocks(faces, chunk);
         shader.RenderChunk((Vector3)chunk, faces);
     }
