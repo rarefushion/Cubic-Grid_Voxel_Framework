@@ -1,4 +1,5 @@
 using System.Numerics;
+using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
@@ -11,8 +12,11 @@ public enum ChunkGenerationStage
     Rendering
 }
 
-public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDirection, float skyOccludedShade, float sunOccludedShade) : IChunkProcessor<Vector3D<int>>
+public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDirection, float sunOccludedShade, float minBrightness) : IChunkProcessor<Vector3D<int>>
 {
+    private const int maxSkyShadeDisWithSun = 25;
+    private const float skyOccludedShade = 0.2f;
+    private const float abientOcclusionShade = 0.05f;
     private readonly int chunkLength = cluster.chunkLength;
     private readonly Vector3 sun = sunDirection;
 
@@ -23,12 +27,12 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
     /// <summary>Gets the center of a face of a cube using the standardized order: -z, +z, +y, -y, -x then +x.</summary>
     public static readonly Vector3[] FaceCenters =
     [
-        new(0.5f, 0.5f, 0.0f),
-        new(0.5f, 0.5f, 1.0f),
-        new(0.5f, 1.0f, 0.5f),
-        new(0.5f, 0.0f, 0.5f),
-        new(0.0f, 0.5f, 0.5f),
-        new(1.0f, 0.5f, 0.5f),
+        new( 0.50f,  0.50f, -0.01f),
+        new( 0.50f,  0.50f,  1.01f),
+        new( 0.50f,  1.01f,  0.50f),
+        new( 0.50f, -0.01f,  0.50f),
+        new(-0.01f,  0.50f,  0.50f),
+        new( 1.01f,  0.50f,  0.50f),
     ];
 
     public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
@@ -94,11 +98,41 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
         for (int f = 0; f < faces.Length; f++)
         {
             float brightness = faces[f].brightness;
-            if (cluster.Raycast((Vector3)chunk + faces[f].position + FaceCenters[faces[f].face], -sun).Block != Air)
+            Vector3 directionVec = ((Direction)faces[f].face).ToVector();
+            Vector3 facePosition = (Vector3)chunk + faces[f].position + FaceCenters[faces[f].face];
+            // Sun occlusion
+            float sunDot = Vector3.Dot(-sun, directionVec);
+            if (sunDot > 0f)
+            {
+                if (cluster.Raycast(facePosition, -sun).Block != Air)
+                    brightness -= sunOccludedShade;
+                else
+                    brightness -= sunOccludedShade * (1 - sunDot);
+            }
+            else
                 brightness -= sunOccludedShade;
-            if (cluster.Raycast((Vector3)chunk + faces[f].position + FaceCenters[faces[f].face], Vector3.UnitY).Block != Air)
-                brightness -= skyOccludedShade;
-            faces[f] = new(faces[f].position, faces[f].block, brightness, faces[f].face);
+            // Sky occlusion
+            ChunkCluster.RaycastResult skyRayResult = cluster.Raycast(facePosition, Vector3.UnitY);
+            if (skyRayResult.Block != Air)
+            {
+                ChunkCluster.RaycastHit skyHit = (ChunkCluster.RaycastHit)skyRayResult;
+                brightness -= skyOccludedShade * (1 - (MathF.Min(MathF.Floor(skyHit.Distance - 0.5f), maxSkyShadeDisWithSun) / maxSkyShadeDisWithSun));
+            }
+            // Ambient occlusion
+            foreach (Direction testDirection in Enum.GetValues<Direction>())
+            {
+                Vector3 testVec = testDirection.ToVector();
+                if (directionVec == testVec || directionVec == -testVec)
+                    continue;
+                ChunkCluster.RaycastResult testRayResult = cluster.Raycast(facePosition, testVec);
+                if (testRayResult.Block != 0 && ((ChunkCluster.RaycastHit)testRayResult).Distance < 1f)
+                    brightness -= abientOcclusionShade;
+            }
+            // Cave fog
+            if (facePosition.Y < 0)
+                brightness *= float.Lerp(1, minBrightness, MathF.Max(facePosition.Y, -32) / -32);
+
+            faces[f] = new(faces[f].position, faces[f].block, MathF.Max(brightness, minBrightness), faces[f].face);
         }
         return faces;
     }

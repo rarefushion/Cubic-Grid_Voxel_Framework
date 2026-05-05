@@ -115,12 +115,12 @@ static class Program
         );
         // Sun
         Vector3 sunColor = new(1f, 0.9f, 1f);
-        Vector3 sunDirection = new // Each axis rotation is scaled -1 to +1 (pos = -direction * distance)
+        Vector3 sunDirection = Vector3.Normalize(new // Each axis rotation is scaled -1 to +1 (pos = -direction * distance)
             (
                 (float)Random.Shared.NextDouble() * 2.0f - 1.0f,
                 (float)Random.Shared.NextDouble() * -.8f - 0.1f, // Puts height between -0.1 and -0.9
                 (float)Random.Shared.NextDouble() * 2.0f - 1.0f
-            );
+            ));
         float sunScale = 250f;
         float sunDistance = 1000f;
         Sun.Load(graphics, sunColor, sunDirection, sunScale, sunDistance);
@@ -132,7 +132,7 @@ static class Program
         );
         // Chunk Management
         ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks, WorldHeightInChunks);
-        ChunkProcessor processor = new(chunkCluster, shader, sunDirection, 0.3f, 0.6f);
+        ChunkProcessor processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor);
         ChunkClusterDirector clusterRegistry = new(generationPipeline, chunkLength, renderDistance, renderHeight, BlockPosByVector3(camStartPos), 32);
         static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
