@@ -66,15 +66,28 @@ public partial class ChunkCluster
                 if (flattenedChunks[blockIndex + chunkIndex] != 0)
                 {
                     Vector3D<int> normal;
+                    float distance;
                     if (blockPos == pos.Floor())
+                    {
+                        distance = 0;
                         normal = new(0, 0, 0);
+                    }
                     else if (stepPrevX)
+                    {
+                        distance = sideDistX - deltaDistX;
                         normal = new(stepX, 0, 0);
+                    }
                     else if (stepPrevY)
+                    {
+                        distance = sideDistY - deltaDistY;
                         normal = new(0, stepY, 0);
+                    }
                     else
+                    {
+                        distance = sideDistZ - deltaDistZ;
                         normal = new(0, 0, stepZ);
-                    return new RaycastHit(flattenedChunks[blockIndex + chunkIndex], blockPos, normal, ((Vector3)blockPos - pos).Length());
+                    }
+                    return new RaycastHit(flattenedChunks[blockIndex + chunkIndex], blockPos, normal, distance);
                 }
                 // Step along the shortest sideDist
                 if (sideDistX < sideDistY && sideDistX < sideDistZ)
