@@ -15,7 +15,7 @@ static class Program
 {
     // Startup Values
     const int chunkLength = 16;
-    const int renderDistance = 32;
+    const int renderDistance = 24;
     const int renderHeight = 4;
     const bool lockGenerationHeight = true; // Disable for infinite Downward generation
     const int WorldHeightInChunks = renderHeight * 2 + 1;
@@ -32,6 +32,8 @@ static class Program
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
     public static DateTime frameStart = DateTime.Now;
+    // Use this over Task.Run instead use ThreadBatch.EnqueueJob for better performance.
+    public static readonly ThreadBatch backgroundThreadBatch = new(Environment.ProcessorCount - 1, ThreadPriority.Normal);
 
     static void Main(string[] args)
     {
@@ -133,7 +135,7 @@ static class Program
         // Chunk Management
         ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks, WorldHeightInChunks);
         ChunkProcessor processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f);
-        ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor);
+        ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         ChunkClusterDirector clusterRegistry = new(generationPipeline, chunkLength, renderDistance, renderHeight, BlockPosByVector3(camStartPos), 32);
         static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
         window.Render += dt =>
@@ -142,10 +144,20 @@ static class Program
 
             Vector3D<int> worldCenter = camPosition.Floor();
             if (lockGenerationHeight)
-            worldCenter.Y = lockedGenerationHeight;
+                worldCenter.Y = lockedGenerationHeight;
             clusterRegistry.SetCentrePosition(worldCenter);
             if (OverTargtetFrameTime())
                 return;
+
+            while (processor.NeedRendering.TryDequeue(out var result))
+            {
+                if (shader.chunkByPos.ContainsKey(result.Position))
+                    shader.DeactivateChunk(result.Position);
+                if (chunkCluster.IsActive(result.Position.Floor()))
+                    shader.RenderChunk(result.Position, result.Faces);
+                if (OverTargtetFrameTime())
+                    return;
+            }
 
             foreach (ChunkDirectorUpdate update in clusterRegistry.ProcessChunks())
             {
@@ -162,9 +174,9 @@ static class Program
                         break;
                     case ChunkDirectorUpdate.GenerationComplete chunk:
                         if (chunk.Cullable)
-                            processor.CullReRender(chunk.Chunk);
+                            backgroundThreadBatch.EnqueueJob(() => processor.CullReRender(chunk.Chunk));
                         foreach (Vector3D<int> neighbor in chunk.CullNeighbors)
-                            processor.CullReRender(neighbor);
+                            backgroundThreadBatch.EnqueueJob(() => processor.CullReRender(neighbor));
                         break;
                 }
                 if (OverTargtetFrameTime())
@@ -180,6 +192,8 @@ static class Program
             DebugRenderer.OnRender(delta, generationPipeline.ChunksInPipeline.Count());
             guiController.Render();
         };
+        // On Quite Cleanup
+        window.Closing += backgroundThreadBatch.Dispose;
     }
 
     public static Vector3D<int> BlockPosByVector3(Vector3 pos) =>

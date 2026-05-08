@@ -1,14 +1,17 @@
+using GalensUnified.CubicGrid.Core;
+
 namespace GalensUnified.CubicGrid.Framework;
 
 using HaltGen = ChunkTaskGate.Halt;
 
-public class ChunkGenerationPipeline<TChunkKey>(IChunkProcessor<TChunkKey> processor) :
+public class ChunkGenerationPipeline<TChunkKey>(IChunkProcessor<TChunkKey> processor, ThreadBatch threadBatch) :
     IChunkGenerationPipeline<TChunkKey>
     where TChunkKey : notnull, IEquatable<TChunkKey>
 {
     public IEnumerable<ChunkGenerationState<TChunkKey>> ChunksInPipeline => chunkByPos.Values;
     private readonly IChunkProcessor<TChunkKey> processor = processor;
     private readonly Dictionary<TChunkKey, ChunkGenerationState<TChunkKey>.Processing> chunkByPos = [];
+    private readonly ThreadBatch threadBatch = threadBatch;
 
     public void StartChunk(TChunkKey toStart) =>
         chunkByPos.Add(toStart, new ChunkGenerationState<TChunkKey>.Processing(toStart, 0, StartChunkTask(toStart, 0)));
@@ -45,7 +48,7 @@ public class ChunkGenerationPipeline<TChunkKey>(IChunkProcessor<TChunkKey> proce
 
     public Task StartChunkTask(TChunkKey chunk, int stage) => processor.GetChunkTask(chunk, stage) switch
     {
-        ChunkTaskType.Async<TChunkKey> async =>  Task.Run(() => async.ChunkTask(chunk, stage)),
+        ChunkTaskType.Async<TChunkKey> async =>  threadBatch.EnqueueJob(() => async.ChunkTask(chunk, stage)),
         ChunkTaskType.Synchronous<TChunkKey> sync =>  sync.ChunkTask(chunk, stage),
         _ => throw new NotSupportedException()
     };

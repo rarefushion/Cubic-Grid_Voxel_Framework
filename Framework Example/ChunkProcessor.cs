@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
@@ -23,6 +24,10 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
     private readonly ChunkCluster cluster = cluster;
     private readonly Shader shader = shader;
     private static readonly FastNoiseLite FNL;
+
+
+    public record RenderChunk(Vector3 Position, FaceInstance[] Faces);
+    public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
 
     /// <summary>Gets the center of a face of a cube using the standardized order: -z, +z, +y, -y, -x then +x.</summary>
     public static readonly Vector3[] FaceCenters =
@@ -87,10 +92,10 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
 
     public void CullReRender(Vector3D<int> chunk)
     {
-        shader.DeactivateChunk((Vector3)chunk);
         FaceInstance[] faces = cluster.CullChunk(chunk);
         faces = ShadeBlocks(faces, chunk);
-        shader.RenderChunk((Vector3)chunk, faces);
+        if (faces.Length > 0)
+            NeedRendering.Enqueue(new((Vector3)chunk, faces));
     }
 
     public FaceInstance[] ShadeBlocks(FaceInstance[] faces, Vector3D<int> chunk)
