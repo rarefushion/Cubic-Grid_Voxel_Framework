@@ -21,12 +21,12 @@ public partial class ChunkCluster
         out Span<ushort> posXChunk
     )
     {
-        negZChunk = CheckedGetChunk(NeighborPos(rootChunk, Direction.Back));
-        posZChunk = CheckedGetChunk(NeighborPos(rootChunk, Direction.Front));
-        posYChunk = CheckedGetChunk(NeighborPos(rootChunk, Direction.Top));
-        negYChunk = CheckedGetChunk(NeighborPos(rootChunk, Direction.Bottom));
-        negXChunk = CheckedGetChunk(NeighborPos(rootChunk, Direction.Left));
-        posXChunk = CheckedGetChunk(NeighborPos(rootChunk, Direction.Right));
+        TryGetChunk(NeighborPos(rootChunk, Direction.Back), out negZChunk);
+        TryGetChunk(NeighborPos(rootChunk, Direction.Front), out posZChunk);
+        TryGetChunk(NeighborPos(rootChunk, Direction.Top), out posYChunk);
+        TryGetChunk(NeighborPos(rootChunk, Direction.Bottom), out negYChunk);
+        TryGetChunk(NeighborPos(rootChunk, Direction.Left), out negXChunk);
+        TryGetChunk(NeighborPos(rootChunk, Direction.Right), out posXChunk);
     }
 
     /// <summary>

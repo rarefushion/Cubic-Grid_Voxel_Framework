@@ -25,17 +25,26 @@ public partial class ChunkCluster
     /// <summary>Fetches a chunk Span{ushort} that can be directly modified.</summary>
     /// <remarks>
     /// The world is wrapped so this can return a chunk at another position.
-    /// Consider using <see cref="CheckedGetChunk"/>.
+    /// Consider using <see cref="TryGetChunk"/>.
     /// </remarks>
     public Span<ushort> GetChunkByPosition(Vector3D<int> pos) =>
         GetChunkByIndex(IndexByChunkCoord(ChunkCoordByGlobalPos(pos)));
 
-    /// <summary>Fetches a chunk Span{ushort} that can be directly modified only if it's active.</summary>
-    /// <returns>The chunk Span{ushort} if <see cref="IsActive"/> is true. If false an empty span.</returns>
-    public Span<ushort> CheckedGetChunk(Vector3D<int> pos) =>
-        IsActive(pos)
-            ? GetChunkByPosition(pos)
-            : [];
+    /// <summary>Fetches a chunk Span{ushort} that can be directly modified only if returned true.</summary>
+    /// <returns>True if <paramref name="pos"/> is active and <paramref name="chunk"/> is modifiable. Else false.</returns>
+    public bool TryGetChunk(Vector3D<int> pos, out Span<ushort> chunk)
+    {
+        if (IsActive(pos))
+        {
+            chunk = GetChunkByPosition(pos);
+            return true;
+        }
+        else
+        {
+            chunk = [];
+            return false;
+        }
+    }
 
     /// <summary>Registers a chunk as active inside <see cref="activeChunks"/>.</summary>
     /// <remarks>Simple tells the cluster it's active. To register blocks use <see cref="GetChunkByPosition"/>.</remarks>
