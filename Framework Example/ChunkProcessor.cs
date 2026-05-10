@@ -94,8 +94,7 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
     {
         FaceInstance[] faces = cluster.CullChunk(chunk);
         faces = ShadeBlocks(faces, chunk);
-        if (faces.Length > 0)
-            NeedRendering.Enqueue(new((Vector3)chunk, faces));
+        NeedRendering.Enqueue(new((Vector3)chunk, faces));
     }
 
     public FaceInstance[] ShadeBlocks(FaceInstance[] faces, Vector3D<int> chunk)

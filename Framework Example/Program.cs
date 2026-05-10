@@ -153,7 +153,7 @@ static class Program
             {
                 if (shader.chunkByPos.ContainsKey(result.Position))
                     shader.DeactivateChunk(result.Position);
-                if (chunkCluster.IsActive(result.Position.Floor()))
+                if (chunkCluster.IsActive(result.Position.Floor()) && result.Faces.Length > 0)
                     shader.RenderChunk(result.Position, result.Faces);
                 if (OverTargtetFrameTime())
                     return;
