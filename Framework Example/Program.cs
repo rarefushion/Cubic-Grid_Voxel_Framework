@@ -165,14 +165,11 @@ static class Program
                 {
                     case ChunkDirectorUpdate.Deactivated chunk:
                         shader.DeactivateChunk((Vector3)chunk.Chunk);
-                        chunkCluster.RemoveChunk(chunk.Chunk);
+                        chunkCluster.TryRemoveChunk(chunk.Chunk);
                         // Neighbors to this chunk will have holes if they were culled.
                         break;
-                    case ChunkDirectorUpdate.Generating chunk:
-                        if (chunk.Stage == 0)
-                            chunkCluster.AddChunk(chunk.Chunk);
-                        break;
                     case ChunkDirectorUpdate.GenerationComplete chunk:
+                        chunkCluster.EnableChunk(chunk.Chunk);
                         if (chunk.Cullable)
                             backgroundThreadBatch.EnqueueJob(() => processor.CullReRender(chunk.Chunk));
                         foreach (Vector3D<int> neighbor in chunk.CullNeighbors)

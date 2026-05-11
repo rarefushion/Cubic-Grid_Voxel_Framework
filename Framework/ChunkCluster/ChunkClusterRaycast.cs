@@ -57,7 +57,7 @@ public partial class ChunkCluster
                 (int)MathF.Floor((float)blockPos.Y / chunkLength) * chunkLength,
                 (int)MathF.Floor((float)blockPos.Z / chunkLength) * chunkLength
             );
-        while (activeChunks.Contains(chunkPos))
+        while (IsActive(chunkPos))
         {
             int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(chunkPos));
             int blockIndex = IndexByGlobalPos(blockPos, chunkLength);

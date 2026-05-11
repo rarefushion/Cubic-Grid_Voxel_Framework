@@ -2,7 +2,15 @@ using Silk.NET.Maths;
 
 namespace GalensUnified.CubicGrid.Framework;
 
-/// <summary>Manages a specified number of chunks allowing retrieval via their position.</summary>
+/// <summary>
+/// Manages a specified number of chunks allowing retrieval via their position.<br/>
+/// Uses one flattened array of ushorts for every chunk.
+/// Indexes are generate to represent a position,
+/// the positions are first wrapped to be contained within the cluster.
+/// E.g a chunk at X:0, Y:0 Z:0 will have the same index as a chunk at X:(the cluster's length) Y:0 Z:0.
+/// You must make sure chunks with the same index are removed before adding the next.<br/>
+/// You can completely bypass the positional error checking by using <see cref="GetChunkByIndex"/>.
+/// </summary>
 public partial class ChunkCluster
 {
     public readonly int chunkLength;
@@ -14,24 +22,35 @@ public partial class ChunkCluster
     public readonly int clusterHeight;
     public readonly int blockCount;
 
-    public readonly HashSet<Vector3D<int>> activeChunks = [];
+    private readonly Dictionary<int, Vector3D<int>> activeChunkPositionByIndex = [];
 
     private readonly ushort[] flattenedChunks;
 
     /// <summary>Fetches a chunk Span{ushort} that can be directly modified.</summary>
+    /// <remarks>Use carefully, this bypasses the positional error checking.</remarks>
     private Span<ushort> GetChunkByIndex(int index) =>
         flattenedChunks.AsSpan(index, chunkVolume);
 
     /// <summary>Fetches a chunk Span{ushort} that can be directly modified.</summary>
-    /// <remarks>
-    /// The world is wrapped so this can return a chunk at another position.
-    /// Consider using <see cref="TryGetChunk"/>.
-    /// </remarks>
-    public Span<ushort> GetChunkByPosition(Vector3D<int> pos) =>
-        GetChunkByIndex(IndexByChunkCoord(ChunkCoordByGlobalPos(pos)));
+    /// <remarks>Probably thread safe if each thread sticks to it's own chunk.</remarks>
+    /// <exception cref="ChunkIndexCollisionException"/>
+    public Span<ushort> GetChunkByPosition(Vector3D<int> pos)
+    {
+        int index = IndexByChunkCoord(ChunkCoordByGlobalPos(pos));
+        if (activeChunkPositionByIndex.TryGetValue(index, out Vector3D<int> associatedPosition) && pos != associatedPosition)
+            throw new ChunkIndexCollisionException
+            (
+                associatedPosition,
+                pos,
+                index,
+                "There is another chunk with the same index that is active. " +
+                "Remove the overlapping chunk before assigning the new one."
+            );
+        return GetChunkByIndex(index);
+    }
 
     /// <summary>Fetches a chunk Span{ushort} that can be directly modified only if returned true.</summary>
-    /// <returns>True if <paramref name="pos"/> is active and <paramref name="chunk"/> is modifiable. Else false.</returns>
+    /// <returns>True if <paramref name="pos"/> is active. Else false, making <paramref name="chunk"/> empty.</returns>
     public bool TryGetChunk(Vector3D<int> pos, out Span<ushort> chunk)
     {
         if (IsActive(pos))
@@ -46,21 +65,40 @@ public partial class ChunkCluster
         }
     }
 
-    /// <summary>Registers a chunk as active inside <see cref="activeChunks"/>.</summary>
-    /// <remarks>Simple tells the cluster it's active. To register blocks use <see cref="GetChunkByPosition"/>.</remarks>
-    public void AddChunk(Vector3D<int> pos) =>
-        activeChunks.Add(pos);
-
-    /// <summary>Sets the entire specified chunk to Air and deregisters from <see cref="activeChunks"/>.</summary>
-    public void RemoveChunk(Vector3D<int> pos)
+    /// <summary>Registers a chunk as active.</summary>
+    /// <remarks>Only tells the cluster it's active. To register blocks use <see cref="GetChunkByPosition"/>.</remarks>
+    /// <exception cref="ChunkIndexCollisionException"/>
+    public void EnableChunk(Vector3D<int> pos)
     {
-        GetChunkByPosition(pos).Clear();
-        activeChunks.Remove(pos);
+        int index = IndexByChunkCoord(ChunkCoordByGlobalPos(pos));
+        if (activeChunkPositionByIndex.TryGetValue(index, out Vector3D<int> associatedPosition) && pos != associatedPosition)
+            throw new ChunkIndexCollisionException
+            (
+                activeChunkPositionByIndex[index],
+                pos,
+                index,
+                "A chunk with the same index has already been added. " +
+                "The new chunk produces the same index as a chunk that already exists. " +
+                "Remove the overlapping chunk before adding the new one."
+            );
+        activeChunkPositionByIndex.Add(index, pos);
     }
 
-    /// <summary>Determines if the <paramref name="chunk"/> is active. Uses <see cref="activeChunks"/>. </summary>
-    public bool IsActive(Vector3D<int> chunk) =>
-        activeChunks.Contains(chunk);
+    /// <summary>Sets the entire specified chunk to 0(Air) and de-registers.</summary>
+    /// <returns>False if the chunk wasn't active or if the chunk that was removed isn't the chunk at <paramref name="pos"/>. Else true.</returns>
+    /// <remarks>The chunk is cleared regardless of return result.</remarks>
+    public bool TryRemoveChunk(Vector3D<int> pos)
+    {
+        bool toReturn = IsActive(pos);
+        GetChunkByPosition(pos).Clear();
+        activeChunkPositionByIndex.Remove(IndexByChunkCoord(ChunkCoordByGlobalPos(pos)));
+        return toReturn;
+    }
+
+    /// <summary>Determines if the <paramref name="pos"/> is active and is the same one that was given to <see cref="EnableChunk"/>.</summary>
+    public bool IsActive(Vector3D<int> pos) =>
+        activeChunkPositionByIndex.TryGetValue(IndexByChunkCoord(ChunkCoordByGlobalPos(pos)), out Vector3D<int> associatedPosition) &&
+        associatedPosition == pos;
 
     /// <summary>
     /// Calculates the chunk coordinate (grid address) by dividing a position by the chunk size.
@@ -99,4 +137,10 @@ public partial class ChunkCluster
         this.blockCount = checked(chunkVolume * chunkCount);
         this.flattenedChunks = new ushort[blockCount];
     }
+
+    /// <summary>Represents a collision where different positions produced the same index.</summary>
+    /// <param name="existingChunk">The position of the chunk that already existed in the cluster.</param>
+    /// <param name="collidingChunk">The position of the chunk that produces the same index as <paramref name="existingChunk"/>.</param>
+    /// <param name="collidingIndex">The index that both chunk positions produce.</param>
+    public class ChunkIndexCollisionException(Vector3D<int> existingChunk, Vector3D<int> collidingChunk, int collidingIndex, string message) : Exception(message);
 }
