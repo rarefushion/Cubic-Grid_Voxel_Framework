@@ -209,6 +209,9 @@ project.lock.json
 # Visual Studio Code
 .vscode/
 
+# Offical VS Code C# Dev Kit Extension exclusion
+*.lscache
+
 # Output folder used by Webpack or other FE stuff
 **/node_modules/*
 **/wwwroot/*
