@@ -4,10 +4,10 @@ using GalensUnified.CubicGrid.Renderer.NET;
 
 namespace GalensUnified.CubicGrid.Framework;
 
-public partial class ChunkCluster
+public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
 {
     public Vector3D<int> NeighborPos(Vector3D<int> rootChunk, Direction direction) =>
-        rootChunk + (direction.ToVector() * chunkLength).Floor();
+        rootChunk + (direction.ToVector() * TChunkDims.Length).Floor();
 
     /// <summary>Fetches all neighbors for this chunk. Empty span if not <see cref="IsActive"/>.</summary>
     public void GetChunkNeighbors
@@ -39,6 +39,6 @@ public partial class ChunkCluster
         Span<ushort> rootChunkBlocks, negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk;
         rootChunkBlocks = GetChunkByPosition(chunk);
         GetChunkNeighbors(chunk, out negZChunk, out posZChunk, out posYChunk, out negYChunk, out negXChunk, out posXChunk);
-        return BlockCulling.CullChunk(rootChunkBlocks, chunkLength, negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
+        return BlockCulling.CullChunk(rootChunkBlocks, TChunkDims.Length, negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk);
     }
 }

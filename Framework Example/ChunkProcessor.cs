@@ -6,22 +6,32 @@ using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
 
 using static BlockIDs;
+using static GalensUnified.CubicGrid.Core.Raycasting;
 
 public enum ChunkGenerationStage
 {
-    CalculatingPoints,
-    Rendering
+    CalculatingPoints, // Individual blocks
+    EnableInCluster, // Tell the Cluster that this chunk is enabled, the cluster's tracker is not concurrent
+    CullAndShade // Create the face instances to render
 }
 
-public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDirection, float sunOccludedShade, float minBrightness) : IChunkProcessor<Vector3D<int>>
+public class ChunkProcessor<TChunkDims>
+(
+    ChunkCluster<TChunkDims> cluster,
+    Shader shader,
+    Vector3 sunDirection,
+    float sunOccludedShade,
+    float minBrightness
+)
+: IChunkProcessor<Vector3D<int>>
+where TChunkDims : IChunkDims
 {
     private const int maxSkyShadeDisWithSun = 25;
     private const float skyOccludedShade = 0.2f;
     private const float abientOcclusionShade = 0.05f;
-    private readonly int chunkLength = cluster.chunkLength;
     private readonly Vector3 sun = sunDirection;
 
-    private readonly ChunkCluster cluster = cluster;
+    private readonly ChunkCluster<TChunkDims> cluster = cluster;
     private readonly Shader shader = shader;
     private static readonly FastNoiseLite FNL;
 
@@ -43,30 +53,32 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
     public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
     {
         ChunkGenerationStage.CalculatingPoints => new ChunkTaskGate.Proceed(),
-        ChunkGenerationStage.Rendering => new ChunkTaskGate.Proceed(),
+        ChunkGenerationStage.EnableInCluster => new ChunkTaskGate.Proceed(),
+        ChunkGenerationStage.CullAndShade => new ChunkTaskGate.Proceed(),
         _ => new ChunkTaskGate.Halt.Complete()
     };
 
     public ChunkTaskType GetChunkTask(Vector3D<int> chunk, int stage) => (ChunkGenerationStage)stage switch
     {
         ChunkGenerationStage.CalculatingPoints => new ChunkTaskType.Async<Vector3D<int>>(CalculatePointsAsync),
-        ChunkGenerationStage.Rendering => new ChunkTaskType.Synchronous<Vector3D<int>>(RenderTask),
+        ChunkGenerationStage.EnableInCluster => new ChunkTaskType.Synchronous<Vector3D<int>>(EnableInCluster),
+        ChunkGenerationStage.CullAndShade => new ChunkTaskType.Async<Vector3D<int>>(RenderTask),
         _ => throw new Exception($"Stage '{stage}' doesn't exist.")
     };
 
     public async Task CalculatePointsAsync(Vector3D<int> chunk, int stage)
     {
         Span<ushort> blocks = cluster.GetChunkByPosition(chunk);
-        for (int blockZ = 0; blockZ < chunkLength; blockZ++)
-        for (int blockX = 0; blockX < chunkLength; blockX++)
-        for (int blockY = 0; blockY < chunkLength; blockY++)
+        for (int blockZ = 0; blockZ < TChunkDims.Length; blockZ++)
+        for (int blockX = 0; blockX < TChunkDims.Length; blockX++)
+        for (int blockY = 0; blockY < TChunkDims.Length; blockY++)
         {
             Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunk;
             float errosion = FNL.GetNoise(blockPos.X, blockPos.Y, blockPos.Z);
             // Doesn't use Y(height) so the value is the same regardless of height.
             float mountainous = (FNL.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
             int mountainHeight = (int)(mountainous * Program.mountainHeight);
-            int i = (blockZ * chunkLength + blockY) * chunkLength + blockX;
+            int i = (blockZ * TChunkDims.Length + blockY) * TChunkDims.Length + blockX;
             if (blockPos.Y > mountainHeight)
                 blocks[i] = Air;
             else if (blockPos.Y == mountainHeight)
@@ -75,19 +87,24 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
                 blocks[i] = Dirt;
             else
                 blocks[i] = Stone;
-            blocks[i] = (Math.Abs(blockPos.X) % cluster.chunkLength == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
-            blocks[i] = (Math.Abs(blockPos.Z) % cluster.chunkLength == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
+            blocks[i] = (Math.Abs(blockPos.X) % TChunkDims.Length == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
+            blocks[i] = (Math.Abs(blockPos.Z) % TChunkDims.Length == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
             if (errosion > 0.5f)
                 blocks[i] = Air;
         }
     }
 
-    public Task RenderTask(Vector3D<int> chunk, int stage)
+    public Task EnableInCluster(Vector3D<int> chunk, int stage)
+    {
+        cluster.EnableChunk(chunk);
+        return Task.CompletedTask;
+    }
+
+    public async Task RenderTask(Vector3D<int> chunk, int stage)
     {
         FaceInstance[] faces = cluster.CullChunk(chunk);
         faces = ShadeBlocks(faces, chunk);
-        shader.RenderChunk((Vector3)chunk, faces);
-        return Task.CompletedTask;
+        NeedRendering.Enqueue(new((Vector3)chunk, faces));
     }
 
     public void CullReRender(Vector3D<int> chunk)
@@ -116,11 +133,10 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
             else
                 brightness -= sunOccludedShade;
             // Sky occlusion
-            ChunkCluster.RaycastResult skyRayResult = cluster.Raycast(facePosition, Vector3.UnitY);
+            RaycastResult skyRayResult = cluster.Raycast(facePosition, Vector3.UnitY);
             if (skyRayResult.Block != Air)
             {
-                ChunkCluster.RaycastHit skyHit = (ChunkCluster.RaycastHit)skyRayResult;
-                brightness -= skyOccludedShade * (1 - (MathF.Min(MathF.Floor(skyHit.Distance - 0.5f), maxSkyShadeDisWithSun) / maxSkyShadeDisWithSun));
+                brightness -= skyOccludedShade * (1 - (MathF.Min(MathF.Floor(skyRayResult.Distance - 0.5f), maxSkyShadeDisWithSun) / maxSkyShadeDisWithSun));
             }
             // Ambient occlusion
             foreach (Direction testDirection in Enum.GetValues<Direction>())
@@ -128,8 +144,8 @@ public class ChunkProcessor(ChunkCluster cluster, Shader shader, Vector3 sunDire
                 Vector3 testVec = testDirection.ToVector();
                 if (directionVec == testVec || directionVec == -testVec)
                     continue;
-                ChunkCluster.RaycastResult testRayResult = cluster.Raycast(facePosition, testVec);
-                if (testRayResult.Block != 0 && ((ChunkCluster.RaycastHit)testRayResult).Distance < 1f)
+                RaycastResult testRayResult = cluster.Raycast(facePosition, testVec);
+                if (testRayResult.Block != 0 && testRayResult.Distance < 1f)
                     brightness -= abientOcclusionShade;
             }
             // Cave fog

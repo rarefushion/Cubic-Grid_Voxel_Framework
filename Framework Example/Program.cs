@@ -9,13 +9,17 @@ using Silk.NET.OpenGL;
 using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.Windowing;
 
+// ChunkDims can be switched out for other sized chunks.
+// Core.ChunkDims are chunks of length 16 (there for volume of 4096).
+// Others exist for 8(Core.HalfChunkDims), 32(Core.DoubleChunkDims), 64 and 128.
+using ChunkDimensions = GalensUnified.CubicGrid.Core.ChunkDims;
+
 using static BlockIDs;
 
 static class Program
 {
     // Startup Values
-    const int chunkLength = 16;
-    const int renderDistance = 24;
+    const int renderDistance = 32;
     const int renderHeight = 4;
     const bool lockGenerationHeight = true; // Disable for infinite Downward generation
     const int WorldHeightInChunks = renderHeight * 2 + 1;
@@ -23,7 +27,7 @@ static class Program
     public const int seed = 1337;
     public const float worldScale = 0.01f;
     public const int mountainHeight = 50;
-    const int lockedGenerationHeight = mountainHeight - (renderHeight * chunkLength);
+    static readonly int lockedGenerationHeight = mountainHeight - (renderHeight * ChunkDimensions.Length);
     public static Vector3 camStartPos = new(8, mountainHeight + 8, 8);
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
@@ -84,12 +88,13 @@ static class Program
             {Dirt, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},
             {Stone, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")}
         };
+        foreach (ushort block in renderDataByBlock.Keys)
+            BlockCulling.transparencyModeByBlock.TryAdd(block, BlockCulling.TransparencyMode.Opaque);
 
         // Create Graphics and Shader
-        const long chunkVolume = chunkLength * chunkLength * chunkLength;
-        const long worldVolume = checked(WorldLengthInChunks * WorldLengthInChunks * WorldHeightInChunks * chunkVolume);
+        long worldVolume = checked(WorldLengthInChunks * WorldLengthInChunks * WorldHeightInChunks * ChunkDimensions.Volume);
         if (worldVolume > int.MaxValue)
-            throw new IndexOutOfRangeException($"{typeof(ChunkCluster).Name} does not allow world volume > {int.MaxValue:N0}. Current: {worldVolume:N0}");
+            throw new IndexOutOfRangeException($"{typeof(ChunkCluster<ChunkDimensions>).Name} does not allow world volume > {int.MaxValue:N0}. Current: {worldVolume:N0}");
         GL graphics = window.CreateOpenGL();
         graphics.Enable(EnableCap.DepthTest);
         graphics.DepthFunc(DepthFunction.Less);
@@ -102,8 +107,8 @@ static class Program
         (
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
-            chunkLength,
-            (int)chunkVolume * FaceInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
+            ChunkDimensions.Length,
+            ChunkDimensions.Volume * FaceInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
             camNearPlane,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
@@ -133,10 +138,10 @@ static class Program
             CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
         // Chunk Management
-        ChunkCluster chunkCluster = new(chunkLength, WorldLengthInChunks, WorldHeightInChunks);
-        ChunkProcessor processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f);
+        ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks);
+        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
-        ChunkClusterDirector clusterRegistry = new(generationPipeline, chunkLength, renderDistance, renderHeight, BlockPosByVector3(camStartPos), 32);
+        ChunkClusterDirector clusterRegistry = new(generationPipeline, ChunkDimensions.Length, renderDistance, renderHeight, camStartPos.Floor(), 32);
         static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
         window.Render += dt =>
         {
@@ -169,7 +174,6 @@ static class Program
                         // Neighbors to this chunk will have holes if they were culled.
                         break;
                     case ChunkDirectorUpdate.GenerationComplete chunk:
-                        chunkCluster.EnableChunk(chunk.Chunk);
                         if (chunk.Cullable)
                             backgroundThreadBatch.EnqueueJob(() => processor.CullReRender(chunk.Chunk));
                         foreach (Vector3D<int> neighbor in chunk.CullNeighbors)
@@ -192,9 +196,6 @@ static class Program
         // On Quite Cleanup
         window.Closing += backgroundThreadBatch.Dispose;
     }
-
-    public static Vector3D<int> BlockPosByVector3(Vector3 pos) =>
-        new((int)pos.X, (int)pos.Y, (int)pos.Z);
 
     /// <summary>Calculates the camera rotation every frame.</summary>
     /// <returns>Distance to rotate the camera.</returns>
