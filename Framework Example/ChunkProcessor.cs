@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Numerics;
 using GalensUnified.CubicGrid.Core;
+using GalensUnified.CubicGrid.Core.Math;
 using GalensUnified.CubicGrid.Framework;
+using GalensUnified.CubicGrid.Framework.Structures;
 using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
 
@@ -29,11 +31,17 @@ where TChunkDims : IChunkDims
     private const int maxSkyShadeDisWithSun = 25;
     private const float skyOccludedShade = 0.2f;
     private const float abientOcclusionShade = 0.05f;
+    public const int MinTerrainHeight = 0;
+    public static int MaxStructureHeight => Tree<TChunkDims>.GetHeight;
     private readonly Vector3 sun = sunDirection;
 
     private readonly ChunkCluster<TChunkDims> cluster = cluster;
     private readonly Shader shader = shader;
     private static readonly FastNoiseLite FNL;
+    private static readonly IStructureGeneration[] structures =
+    [
+        new Tree<TChunkDims>()
+    ];
 
 
     public record RenderChunk(Vector3 Position, FaceInstance[] Faces);
@@ -66,18 +74,38 @@ where TChunkDims : IChunkDims
         _ => throw new Exception($"Stage '{stage}' doesn't exist.")
     };
 
+    public static bool IsErodid(Vector3D<int> blockPosition)
+    {
+        float errosion = FNL.GetNoise(blockPosition.X, blockPosition.Y, blockPosition.Z);
+        return errosion > 0.5f;
+    }
+
+    public static int GetMountainHeight(Vector3D<int> blockPosition)
+    {
+        // Doesn't use Y(height) so the value is the same regardless of height.
+        float mountainous = (FNL.GetNoise(blockPosition.X, blockPosition.Z) + 1) / 2;
+        return (int)(mountainous * Program.mountainHeight) + MinTerrainHeight;
+    }
+
     public async Task CalculatePointsAsync(Vector3D<int> chunk, int stage)
     {
+        // Find Structures
+        Dictionary<IStructureGeneration, GeneratedStructureData[]> structureDataByType = [];
+        foreach (IStructureGeneration structure in structures)
+        {
+            List<GeneratedStructureData> dataPoints = [];
+            foreach (Vector3D<int> checkChunk in structure.PossibleChunks(chunk))
+                dataPoints.AddRange(structure.FindChunksStructures(checkChunk));
+            structureDataByType.Add(structure, [.. dataPoints]);
+        }
+        // Blocks
         Span<ushort> blocks = cluster.GetChunkByPosition(chunk);
         for (int blockZ = 0; blockZ < TChunkDims.Length; blockZ++)
         for (int blockX = 0; blockX < TChunkDims.Length; blockX++)
         for (int blockY = 0; blockY < TChunkDims.Length; blockY++)
         {
             Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunk;
-            float errosion = FNL.GetNoise(blockPos.X, blockPos.Y, blockPos.Z);
-            // Doesn't use Y(height) so the value is the same regardless of height.
-            float mountainous = (FNL.GetNoise(blockPos.X, blockPos.Z) + 1) / 2;
-            int mountainHeight = (int)(mountainous * Program.mountainHeight);
+            int mountainHeight = GetMountainHeight(blockPos);
             int i = (blockZ * TChunkDims.Length + blockY) * TChunkDims.Length + blockX;
             if (blockPos.Y > mountainHeight)
                 blocks[i] = Air;
@@ -89,8 +117,17 @@ where TChunkDims : IChunkDims
                 blocks[i] = Stone;
             blocks[i] = (Math.Abs(blockPos.X) % TChunkDims.Length == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
             blocks[i] = (Math.Abs(blockPos.Z) % TChunkDims.Length == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
-            if (errosion > 0.5f)
+            if (IsErodid(blockPos))
                 blocks[i] = Air;
+            // Place Structures
+            foreach ((IStructureGeneration type, GeneratedStructureData[] dataEntries) in structureDataByType)
+            foreach (GeneratedStructureData data in dataEntries)
+            {
+                Vector3D<int> blockPosLocalToStructure = data.LocalPositionByGlobalPos(blockPos);
+                ushort structureBlock = type.GetBlock(blockPosLocalToStructure);
+                if (structureBlock != 0)
+                    blocks[i] = structureBlock;
+            }
         }
     }
 
@@ -149,8 +186,8 @@ where TChunkDims : IChunkDims
                     brightness -= abientOcclusionShade;
             }
             // Cave fog
-            if (facePosition.Y < 0)
-                brightness *= float.Lerp(1, minBrightness, MathF.Max(facePosition.Y, -32) / -32);
+            if (facePosition.Y < MinTerrainHeight)
+                brightness *= float.Lerp(1, minBrightness, (MathF.Max(facePosition.Y, MinTerrainHeight - 32) - MinTerrainHeight) / -32);
 
             faces[f] = new(faces[f].position, faces[f].block, MathF.Max(brightness, minBrightness), faces[f].face);
         }

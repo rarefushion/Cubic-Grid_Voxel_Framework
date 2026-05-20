@@ -27,7 +27,11 @@ static class Program
     public const int seed = 1337;
     public const float worldScale = 0.01f;
     public const int mountainHeight = 50;
-    static readonly int lockedGenerationHeight = mountainHeight - (renderHeight * ChunkDimensions.Length);
+    static readonly int lockedGenerationHeight =
+        mountainHeight
+        + ChunkProcessor<ChunkDimensions>.MaxStructureHeight
+        + ChunkProcessor<ChunkDimensions>.MinTerrainHeight
+        - (renderHeight * ChunkDimensions.Length);
     public static Vector3 camStartPos = new(8, mountainHeight + 8, 8);
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
@@ -86,10 +90,13 @@ static class Program
             {Air, new("Null", "Null", "Null", "Null", "Null", "Null")},
             {Grass, new("Grass Side", "Grass Side", "Grass", "Dirt", "Grass Side", "Grass Side")},
             {Dirt, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},
-            {Stone, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")}
+            {Stone, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")},
+            {OakLog, new("oak_log", "oak_log", "oak_log_top", "oak_log_top", "oak_log", "oak_log")},
+            {OakLeaves, new("oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves")}
         };
         foreach (ushort block in renderDataByBlock.Keys)
             BlockCulling.transparencyModeByBlock.TryAdd(block, BlockCulling.TransparencyMode.Opaque);
+        BlockCulling.transparencyModeByBlock[OakLeaves] = BlockCulling.TransparencyMode.RenderOnTransparent;
 
         // Create Graphics and Shader
         long worldVolume = checked(WorldLengthInChunks * WorldLengthInChunks * WorldHeightInChunks * ChunkDimensions.Volume);
@@ -98,6 +105,8 @@ static class Program
         GL graphics = window.CreateOpenGL();
         graphics.Enable(EnableCap.DepthTest);
         graphics.DepthFunc(DepthFunction.Less);
+        graphics.Enable(EnableCap.CullFace);
+        graphics.CullFace(GLEnum.Back); // Back face culling doesn't seem to effect performance but looks better for transparent blocks.
         graphics.ClearColor(System.Drawing.Color.CornflowerBlue);
         window.Resize += size => graphics.Viewport(0, 0, (uint)size.X, (uint)size.Y);
         window.Update += delta => graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);

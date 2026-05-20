@@ -6,4 +6,6 @@ public static class BlockIDs
     public const ushort Grass = 1;
     public const ushort Dirt = 2;
     public const ushort Stone = 3;
+    public const ushort OakLog = 4;
+    public const ushort OakLeaves = 5;
 }
