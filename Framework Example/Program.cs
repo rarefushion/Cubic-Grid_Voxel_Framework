@@ -151,7 +151,7 @@ static class Program
         ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         ChunkClusterDirector clusterRegistry = new(generationPipeline, ChunkDimensions.Length, renderDistance, renderHeight, camStartPos.Floor(), 32);
-        static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
+        ChunkDirectorHandler<ChunkDimensions> registryHandler = new(shader, chunkCluster, processor);
         window.Render += dt =>
         {
             frameStart = DateTime.Now;
@@ -173,25 +173,7 @@ static class Program
                     return;
             }
 
-            foreach (ChunkDirectorUpdate update in clusterRegistry.ProcessChunks())
-            {
-                switch (update)
-                {
-                    case ChunkDirectorUpdate.Deactivated chunk:
-                        shader.DeactivateChunk((Vector3)chunk.Chunk);
-                        chunkCluster.TryRemoveChunk(chunk.Chunk);
-                        // Neighbors to this chunk will have holes if they were culled.
-                        break;
-                    case ChunkDirectorUpdate.GenerationComplete chunk:
-                        if (chunk.Cullable)
-                            backgroundThreadBatch.EnqueueJob(() => processor.CullReRender(chunk.Chunk));
-                        foreach (Vector3D<int> neighbor in chunk.CullNeighbors)
-                            backgroundThreadBatch.EnqueueJob(() => processor.CullReRender(neighbor));
-                        break;
-                }
-                if (OverTargtetFrameTime())
-                    return;
-            }
+            clusterRegistry.ProcessChunks(registryHandler);
         };
         // Debug Info
         ImGuiController guiController = new(graphics, window, input);
@@ -205,6 +187,8 @@ static class Program
         // On Quite Cleanup
         window.Closing += backgroundThreadBatch.Dispose;
     }
+
+    public static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
 
     /// <summary>Calculates the camera rotation every frame.</summary>
     /// <returns>Distance to rotate the camera.</returns>

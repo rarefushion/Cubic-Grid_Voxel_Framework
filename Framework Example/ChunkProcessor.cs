@@ -146,9 +146,12 @@ where TChunkDims : IChunkDims
 
     public void CullReRender(Vector3D<int> chunk)
     {
-        FaceInstance[] faces = cluster.CullChunk(chunk);
-        faces = ShadeBlocks(faces, chunk);
-        NeedRendering.Enqueue(new((Vector3)chunk, faces));
+        Program.backgroundThreadBatch.EnqueueJob(() =>
+        {
+            FaceInstance[] faces = cluster.CullChunk(chunk);
+            faces = ShadeBlocks(faces, chunk);
+            NeedRendering.Enqueue(new((Vector3)chunk, faces));
+        });
     }
 
     public FaceInstance[] ShadeBlocks(FaceInstance[] faces, Vector3D<int> chunk)

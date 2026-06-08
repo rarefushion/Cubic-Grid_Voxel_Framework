@@ -28,10 +28,10 @@ public class ChunkClusterDirector : IChunkClusterDirector
     public Vector3D<int> CentrePosition { get; private set; }
 
     /// <summary>All chunks currently tracked by the Director and their last known state.</summary>
-    public IEnumerable<ChunkDirectorUpdate> Registry => chunkByPos.Values;
+    public IEnumerable<Vector3D<int>> Registry => chunkCompleteByPos.Keys;
     public IChunkGenerationPipeline<Vector3D<int>> GenerationPipeline { get; }
 
-    private readonly Dictionary<Vector3D<int>, ChunkDirectorUpdate> chunkByPos = [];
+    private readonly Dictionary<Vector3D<int>, bool> chunkCompleteByPos = [];
     private Queue<Vector3D<int>> toAdd = [];
     private HashSet<Vector3D<int>> toRemove = [];
     private readonly SemaphoreSlim semaphore;
@@ -84,7 +84,7 @@ public class ChunkClusterDirector : IChunkClusterDirector
     {
         toAdd.Clear();
         toRemove.Clear();
-        toRemove.UnionWith(chunkByPos.Keys);
+        toRemove.UnionWith(chunkCompleteByPos.Keys);
         IEnumerable<Vector3D<int>> newChunks = CubicNeighborhood.ExpandingCubePositions
             (
                 CentrePosition,
@@ -94,33 +94,25 @@ public class ChunkClusterDirector : IChunkClusterDirector
         HashSet<Vector3D<int>> Added = [];
         foreach (Vector3D<int> chunk in newChunks)
             if (!toRemove.Remove(chunk)) // if chunk didn't exist
-                if (Added.Add(chunk) && !chunkByPos.ContainsKey(chunk)) // ExpanddingCubePositions can duplicate positions. Need to refactor it.
+                if (Added.Add(chunk) && !chunkCompleteByPos.ContainsKey(chunk)) // ExpanddingCubePositions can duplicate positions. Need to refactor it.
                     toAdd.Enqueue(chunk);
     }
 
     /// <summary>
-    /// Advances the cluster one step: progresses the generation pipeline,
+    /// Advances the generation pipeline, invoking <paramref name="handler"/> on updates.
     /// evicts out-of-bounds chunks, then starts newly in-bounds chunks up to the concurrency limit.
     /// Removals are always processed before additions.
     /// </summary>
-    /// <returns>
-    /// A lazily evaluated sequence of <see cref="ChunkDirectorUpdate"/> values representing
-    /// each state change in the order it occurred. Out-of-bounds evictions are yielded before
-    /// new chunk activations. Enumeration may be interrupted between yields to spread work across frames.
-    /// </returns>
-    public IEnumerable<ChunkDirectorUpdate> ProcessChunks()
+    public void ProcessChunks<THandler>(THandler handler) where THandler : struct, IChunkDirectorUpdateHandler
     {
         if (!IsProcessing)
-            yield break;
+            return;
 
         foreach (ChunkGenState chunkState in GenerationPipeline.ProcessChunks())
         switch (chunkState)
         {
             case ChunkGenState.Processing chunk:
-                yield return chunkByPos[chunk.Chunk] = (ChunkDirectorUpdate.Generating)chunkByPos[chunk.Chunk] with
-                {
-                    Stage = chunk.Stage,
-                };
+                handler.OnGenerationUpdate(chunk.Chunk, chunk.Stage);
                 break;
             case ChunkGenState.Finalized State:
                 semaphore.Release();
@@ -133,8 +125,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
                     Vector3D<int> neighbor = State.Chunk + (CubicNeighborhood.MooreNeighborhood[rootD] * ChunkLength);
                     if
                     (
-                        !chunkByPos.TryGetValue(neighbor, out ChunkDirectorUpdate? NUpdate) ||
-                        NUpdate is not ChunkDirectorUpdate.GenerationComplete
+                        !chunkCompleteByPos.TryGetValue(neighbor, out bool NComplete) ||
+                        !NComplete
                     )
                     {
                         cullable = false;
@@ -149,8 +141,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
                             continue;
                         if
                         (
-                            !chunkByPos.TryGetValue(nieghborNeighbor, out ChunkDirectorUpdate? NNUpdate) ||
-                            NNUpdate is not ChunkDirectorUpdate.GenerationComplete
+                            !chunkCompleteByPos.TryGetValue(nieghborNeighbor, out bool NNComplete) ||
+                            !NNComplete
                         )
                         {
                             neighborCullable = false;
@@ -161,7 +153,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
                         neighborsCullable.Add(neighbor);
                 }
                 // Shouldn't be storing cullable states as they will become stale.
-                yield return chunkByPos[State.Chunk] = new ChunkDirectorUpdate.GenerationComplete(State.Chunk, cullable, [.. neighborsCullable]);
+                chunkCompleteByPos[State.Chunk] = true;
+                handler.OnGenerationComplete(State.Chunk, cullable, [.. neighborsCullable]);
                 break;
             default:
                 throw new NotSupportedException();
@@ -172,20 +165,20 @@ public class ChunkClusterDirector : IChunkClusterDirector
         foreach (Vector3D<int> chunk in removing)
         {
             if (generating.Contains(chunk))
-                yield break;
-            chunkByPos.Remove(chunk);
+                return;
+            chunkCompleteByPos.Remove(chunk);
             toRemove.Remove(chunk);
-            yield return new ChunkDirectorUpdate.Deactivated(chunk);
+            handler.OnDeactivated(chunk);
         }
 
         while (toAdd.Count > 0 && semaphore.Wait(0))
         {
             Vector3D<int> chunk = toAdd.Dequeue();
-            if (chunkByPos.ContainsKey(chunk))
+            if (chunkCompleteByPos.ContainsKey(chunk))
                 throw new InvalidOperationException($"Chunk {chunk} is already being tracked. This should never happen.");
-            chunkByPos[chunk] = new ChunkDirectorUpdate.Generating(chunk, 0);
+            chunkCompleteByPos[chunk] = false;
             GenerationPipeline.StartChunk(chunk);
-            yield return chunkByPos[chunk];
+            handler.OnGenerationUpdate(chunk, 0);
         }
     }
 
