@@ -112,7 +112,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
         switch (chunkState)
         {
             case ChunkGenState.Processing chunk:
-                handler.OnGenerationUpdate(chunk.Chunk, chunk.Stage);
+                if (!handler.OnGenerationUpdate(chunk.Chunk, chunk.Stage))
+                    return;
                 break;
             case ChunkGenState.Finalized State:
                 semaphore.Release();
@@ -154,7 +155,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
                 }
                 // Shouldn't be storing cullable states as they will become stale.
                 chunkCompleteByPos[State.Chunk] = true;
-                handler.OnGenerationComplete(State.Chunk, cullable, [.. neighborsCullable]);
+                if (!handler.OnGenerationComplete(State.Chunk, cullable, [.. neighborsCullable]))
+                    return;
                 break;
             default:
                 throw new NotSupportedException();
@@ -168,7 +170,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
                 return;
             chunkCompleteByPos.Remove(chunk);
             toRemove.Remove(chunk);
-            handler.OnDeactivated(chunk);
+            if (!handler.OnDeactivated(chunk))
+                return;
         }
 
         while (toAdd.Count > 0 && semaphore.Wait(0))
@@ -178,7 +181,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
                 throw new InvalidOperationException($"Chunk {chunk} is already being tracked. This should never happen.");
             chunkCompleteByPos[chunk] = false;
             GenerationPipeline.StartChunk(chunk);
-            handler.OnGenerationUpdate(chunk, 0);
+            if (!handler.OnGenerationUpdate(chunk, 0))
+                return;
         }
     }
 
