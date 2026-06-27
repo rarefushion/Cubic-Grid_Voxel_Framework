@@ -21,17 +21,12 @@ static class Program
     // Startup Values
     const int renderDistance = 32;
     const int renderHeight = 4;
-    const bool lockGenerationHeight = true; // Disable for infinite Downward generation
-    const int WorldHeightInChunks = renderHeight * 2 + 1;
+    public const bool lockGenerationHeight = true; // Disable for infinite Downward generation
+    public const int WorldHeightInChunks = renderHeight * 2 + 1;
     const int WorldLengthInChunks = renderDistance * 2 + 1;
     public const int seed = 1337;
     public const float worldScale = 0.01f;
     public const int mountainHeight = 50;
-    static readonly int lockedGenerationHeight =
-        mountainHeight
-        + ChunkProcessor<ChunkDimensions>.MaxStructureHeight
-        + ChunkProcessor<ChunkDimensions>.MinTerrainHeight
-        - (renderHeight * ChunkDimensions.Length);
     public static Vector3 camStartPos = new(8, mountainHeight + 8, 8);
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
@@ -150,16 +145,16 @@ static class Program
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks);
         ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
-        ChunkClusterDirector clusterRegistry = new(generationPipeline, ChunkDimensions.Length, renderDistance, renderHeight, camStartPos.Floor(), 32);
-        ChunkDirectorHandler<ChunkDimensions> registryHandler = new(shader, chunkCluster, processor);
+        IChunkClusterDirector clusterRegistry = lockGenerationHeight
+            ? new ChunkClusterDirectorFlat(generationPipeline, ChunkDimensions.Length, renderDistance, camStartPos.Floor(), 32)
+            : new ChunkClusterDirector(generationPipeline, ChunkDimensions.Length, renderDistance, renderHeight, camStartPos.Floor(), 32);
+
+        ChunkDirectorHandler<ChunkDimensions> registryHandler = new(chunkCluster, processor);
         window.Render += dt =>
         {
             frameStart = DateTime.Now;
 
-            Vector3D<int> worldCenter = camPosition.Floor();
-            if (lockGenerationHeight)
-                worldCenter.Y = lockedGenerationHeight;
-            clusterRegistry.SetCentrePosition(worldCenter);
+            clusterRegistry.SetCentrePosition(camPosition.Floor());
             if (OverTargtetFrameTime())
                 return;
 

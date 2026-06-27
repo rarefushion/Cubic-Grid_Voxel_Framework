@@ -32,6 +32,10 @@ where TChunkDims : IChunkDims
     private const float skyOccludedShade = 0.2f;
     private const float abientOcclusionShade = 0.05f;
     public const int MinTerrainHeight = 0;
+    public static readonly int HeighestPointInChunks =
+        (int)float.Ceiling((Program.mountainHeight + MaxStructureHeight + MinTerrainHeight) / (float)TChunkDims.Length);
+    public static readonly int LowestPointInChunks = HeighestPointInChunks - Program.WorldHeightInChunks;
+
     public static int MaxStructureHeight => Tree<TChunkDims>.GetHeight;
     private readonly Vector3 sun = sunDirection;
 
@@ -87,7 +91,21 @@ where TChunkDims : IChunkDims
         return (int)(mountainous * Program.mountainHeight) + MinTerrainHeight;
     }
 
-    public async Task CalculatePointsAsync(Vector3D<int> chunk, int stage)
+    private async Task CalculatePointsAsync(Vector3D<int> chunk, int stage)
+    {
+        if (!Program.lockGenerationHeight)
+            CalculateChunkPointsAsync(chunk);
+        else
+        {
+            for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
+            {
+                chunk.Y = y * TChunkDims.Length;
+                CalculateChunkPointsAsync(chunk);
+            }
+        }
+    }
+
+    public void CalculateChunkPointsAsync(Vector3D<int> chunk)
     {
         // Find Structures
         Dictionary<IStructureGeneration, GeneratedStructureData[]> structureDataByType = [];
@@ -133,25 +151,46 @@ where TChunkDims : IChunkDims
 
     public Task EnableInCluster(Vector3D<int> chunk, int stage)
     {
-        cluster.EnableChunk(chunk);
+        if (!Program.lockGenerationHeight)
+            cluster.EnableChunk(chunk);
+        else
+            for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
+            {
+                chunk.Y = y * TChunkDims.Length;
+                cluster.EnableChunk(chunk);
+            }
         return Task.CompletedTask;
     }
 
     public async Task RenderTask(Vector3D<int> chunk, int stage)
     {
-        FaceInstance[] faces = cluster.CullChunk(chunk);
-        faces = ShadeBlocks(faces, chunk);
-        NeedRendering.Enqueue(new((Vector3)chunk, faces));
+        if (!Program.lockGenerationHeight)
+            CullAndShadeChunk(chunk);
+        else
+            for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
+            {
+                chunk.Y = y * TChunkDims.Length;
+                CullAndShadeChunk(chunk);
+            }
     }
 
     public void CullReRender(Vector3D<int> chunk)
     {
-        Program.backgroundThreadBatch.EnqueueJob(() =>
-        {
-            FaceInstance[] faces = cluster.CullChunk(chunk);
-            faces = ShadeBlocks(faces, chunk);
-            NeedRendering.Enqueue(new((Vector3)chunk, faces));
-        });
+        if (!Program.lockGenerationHeight)
+            Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(chunk));
+        else
+            for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
+            {
+                chunk.Y = y * TChunkDims.Length;
+                Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(chunk));
+            }
+    }
+
+    private void CullAndShadeChunk(Vector3D<int> chunk)
+    {
+        FaceInstance[] faces = cluster.CullChunk(chunk);
+        faces = ShadeBlocks(faces, chunk);
+        NeedRendering.Enqueue(new((Vector3)chunk, faces));
     }
 
     public FaceInstance[] ShadeBlocks(FaceInstance[] faces, Vector3D<int> chunk)
@@ -195,6 +234,22 @@ where TChunkDims : IChunkDims
             faces[f] = new(faces[f].position, faces[f].block, MathF.Max(brightness, minBrightness), faces[f].face);
         }
         return faces;
+    }
+
+    public void Deactivate(Vector3D<int> chunk)
+    {
+        if (!Program.lockGenerationHeight)
+        {
+            shader.DeactivateChunk((Vector3)chunk);
+            cluster.TryRemoveChunk(chunk);
+        }
+        else
+            for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
+            {
+                chunk.Y = y * TChunkDims.Length;
+                shader.DeactivateChunk((Vector3)chunk);
+                cluster.TryRemoveChunk(chunk);
+            }
     }
 
     static ChunkProcessor()
