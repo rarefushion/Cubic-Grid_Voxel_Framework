@@ -34,7 +34,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// Gets the <paramref name="chunk"/>'s neighbors for culling.
     /// If a neighbor isn't in <see cref="acitveChunks"/> it will be assumed that all of the blocks on that side are visible.
     /// </summary>
-    public FaceInstance[] CullChunk(Vector3D<int> chunk)
+    public CubeFaceInstance[] CullChunk(Vector3D<int> chunk)
     {
         Span<ushort> rootChunkBlocks, negZChunk, posZChunk, posYChunk, negYChunk, negXChunk, posXChunk;
         rootChunkBlocks = GetChunkByPosition(chunk);

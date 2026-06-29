@@ -112,7 +112,7 @@ static class Program
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             ChunkDimensions.Length,
-            ChunkDimensions.Volume * FaceInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
+            ChunkDimensions.Volume * CubeFaceInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
             camNearPlane,
             renderDataByBlock,
             TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),

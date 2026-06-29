@@ -48,7 +48,7 @@ where TChunkDims : IChunkDims
     ];
 
 
-    public record RenderChunk(Vector3 Position, FaceInstance[] Faces);
+    public record RenderChunk(Vector3 Position, CubeFaceInstance[] Faces);
     public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
 
     /// <summary>Gets the center of a face of a cube using the standardized order: -z, +z, +y, -y, -x then +x.</summary>
@@ -188,16 +188,16 @@ where TChunkDims : IChunkDims
 
     private void CullAndShadeChunk(Vector3D<int> chunk)
     {
-        FaceInstance[] faces = cluster.CullChunk(chunk);
+        CubeFaceInstance[] faces = cluster.CullChunk(chunk);
         faces = ShadeBlocks(faces, chunk);
         NeedRendering.Enqueue(new((Vector3)chunk, faces));
     }
 
-    public FaceInstance[] ShadeBlocks(FaceInstance[] faces, Vector3D<int> chunk)
+    public CubeFaceInstance[] ShadeBlocks(CubeFaceInstance[] faces, Vector3D<int> chunk)
     {
         for (int f = 0; f < faces.Length; f++)
         {
-            float brightness = faces[f].brightness;
+            float brightness = 1;
             Vector3 directionVec = ((Direction)faces[f].face).ToVector();
             Vector3 facePosition = (Vector3)chunk + faces[f].position + FaceCenters[faces[f].face];
             // Sun occlusion
@@ -231,7 +231,7 @@ where TChunkDims : IChunkDims
             if (facePosition.Y < MinTerrainHeight)
                 brightness *= float.Lerp(1, minBrightness, (MathF.Max(facePosition.Y, MinTerrainHeight - 32) - MinTerrainHeight) / -32);
 
-            faces[f] = new(faces[f].position, faces[f].block, MathF.Max(brightness, minBrightness), faces[f].face);
+            faces[f] = new(faces[f].position, faces[f].block, faces[f].tint * MathF.Max(brightness, minBrightness), faces[f].face);
         }
         return faces;
     }
