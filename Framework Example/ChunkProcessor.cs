@@ -188,23 +188,35 @@ where TChunkDims : IChunkDims
 
     private void CullAndShadeChunk(Vector3D<int> chunk)
     {
-        CubeFaceInstance[] faces = cluster.CullChunk(chunk);
-        faces = ShadeBlocks(faces, chunk);
-        NeedRendering.Enqueue(new((Vector3)chunk, faces));
+        CullingHandler cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
+        cullingHandler = cluster.CullChunk(chunk, cullingHandler);
+        NeedRendering.Enqueue(new((Vector3)chunk, [.. cullingHandler.instances]));
     }
 
-    public CubeFaceInstance[] ShadeBlocks(CubeFaceInstance[] faces, Vector3D<int> chunk)
+    struct CullingHandler
+    (
+        Vector3 chunkPosition,
+        Vector3 sunDirection,
+        float sunOccludedShade,
+        float minBrightness,
+        ChunkCluster<TChunkDims> cluster
+    ) : IBlockCullingHandler
     {
-        for (int f = 0; f < faces.Length; f++)
+        public readonly List<CubeFaceInstance> instances = [];
+
+        public readonly void CullBegan() { }
+
+        public readonly void FaceVisible(Vector3 localBlockPosition, ushort block, Direction faceNormal)
         {
+            // Shade
             float brightness = 1;
-            Vector3 directionVec = ((Direction)faces[f].face).ToVector();
-            Vector3 facePosition = (Vector3)chunk + faces[f].position + FaceCenters[faces[f].face];
+            Vector3 directionVec = faceNormal.ToVector();
+            Vector3 facePosition = chunkPosition + localBlockPosition + FaceCenters[(int)faceNormal];
             // Sun occlusion
-            float sunDot = Vector3.Dot(-sun, directionVec);
+            float sunDot = Vector3.Dot(-sunDirection, directionVec);
             if (sunDot > 0f)
             {
-                if (cluster.Raycast(facePosition, -sun).Block != Air)
+                if (cluster.Raycast(facePosition, -sunDirection).Block != Air)
                     brightness -= sunOccludedShade;
                 else
                     brightness -= sunOccludedShade * (1 - sunDot);
@@ -231,9 +243,8 @@ where TChunkDims : IChunkDims
             if (facePosition.Y < MinTerrainHeight)
                 brightness *= float.Lerp(1, minBrightness, (MathF.Max(facePosition.Y, MinTerrainHeight - 32) - MinTerrainHeight) / -32);
 
-            faces[f] = new(faces[f].position, faces[f].block, faces[f].tint * MathF.Max(brightness, minBrightness), faces[f].face);
+            instances.Add(new(localBlockPosition, block, Vector3.One * MathF.Max(brightness, minBrightness), (int)faceNormal));
         }
-        return faces;
     }
 
     public void Deactivate(Vector3D<int> chunk)
