@@ -89,8 +89,10 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     public bool TryRemoveChunk(Vector3D<int> pos)
     {
         bool toReturn = IsActive(pos);
-        GetChunkByPosition(pos).Clear();
-        activeChunkPositionByIndex.Remove(IndexByChunkCoord(ChunkCoordByGlobalPos(pos)));
+        int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(pos));
+        GetChunkByIndex(chunkIndex).Clear();
+        activeChunkPositionByIndex.Remove(chunkIndex);
+        flattenedChunkBlockData.AsSpan(chunkIndex, TChunkDims.Volume).Clear();
         return toReturn;
     }
 
@@ -124,7 +126,12 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
 
     /// <param name="chunkLength">The length of a single chunk. In other words the cube root of the chunk's volume.</param>
     /// <param name="clusterChunkLength">Number of chunks along each axis, allowing for a non cubic cluster.</param>
-    public ChunkCluster(int clusterChunkLength, int clusterChunkHeight)
+    /// <param name="blockBehaviorByBlock">
+    /// Maps block IDs to <see cref="IBlockBehavior"/> instances.
+    /// Defaults to an empty array if unused, block data and behaviors are optional.
+    /// If used, all blocks must be mapped even for slots for blocks without behaviors, leave those null.
+    /// </param>
+    public ChunkCluster(int clusterChunkLength, int clusterChunkHeight, IBlockBehavior?[]? blockBehaviorByBlock = null)
     {
         this.clusterChunkLength = clusterChunkLength;
         this.clusterChunkHeight = clusterChunkHeight;
@@ -133,6 +140,8 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
         this.clusterHeight = clusterChunkHeight * TChunkDims.Length;
         this.blockCount = checked(TChunkDims.Volume * chunkCount);
         this.flattenedChunks = new ushort[blockCount];
+        this.blockBehaviorByBlock = blockBehaviorByBlock ?? [];
+        this.flattenedChunkBlockData = new IBlockData[blockCount];
     }
 
     /// <summary>Represents a collision where different positions produced the same index.</summary>
@@ -140,4 +149,9 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// <param name="collidingChunk">The position of the chunk that produces the same index as <paramref name="existingChunk"/>.</param>
     /// <param name="collidingIndex">The index that both chunk positions produce.</param>
     public class ChunkIndexCollisionException(Vector3D<int> existingChunk, Vector3D<int> collidingChunk, int collidingIndex, string message) : Exception(message);
+    /// <summary>Thrown when an operation is attempted on a chunk that is not active but is required.</summary>
+    /// <param name="chunkPosition">The position of the inactive chunk.</param>
+    /// <param name="chunkIndex">The flattened index of the inactive chunk.</param>
+    /// <param name="message">Description of the failed operation.</param>
+    public class ChunkInactiveException(Vector3D<int> chunkPosition, int chunkIndex, string message) : Exception(message);
 }
