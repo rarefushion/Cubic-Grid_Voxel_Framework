@@ -83,7 +83,8 @@ static class Program
         Dictionary<ushort, BlockRenderData> renderDataByBlock = new()
         {
             {Air, new("Null", "Null", "Null", "Null", "Null", "Null")},
-            {Grass, new("Grass Side", "Grass Side", "Grass", "Dirt", "Grass Side", "Grass Side")},
+            {Grass, new("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side")},
+            {GrassSideDirt, new("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt")},
             {Dirt, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},
             {Stone, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")},
             {OakLog, new("oak_log", "oak_log", "oak_log_top", "oak_log_top", "oak_log", "oak_log")},

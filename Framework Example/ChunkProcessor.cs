@@ -204,14 +204,22 @@ where TChunkDims : IChunkDims
     {
         public readonly List<CubeFaceInstance> instances = [];
 
+        public static FastNoiseLite temperature = new(Program.seed);
+        static readonly Vector3 lush = new(0.0f, 1.0f, 0.0f); // rgb(0, 255, 0)
+        static readonly Vector3 autumn = new(1, 0.53f, 0.17f); // rgb(255, 136, 44)
+
+        public static float GetTemperature(Vector3 position) =>
+            (temperature.GetNoise(position.X, position.Z) + 1) / 2;
+
         public readonly void CullBegan() { }
 
         public readonly void FaceVisible(Vector3 localBlockPosition, ushort block, Direction faceNormal)
         {
+            Vector3 blockPos = chunkPosition + localBlockPosition;
             // Shade
             float brightness = 1;
             Vector3 directionVec = faceNormal.ToVector();
-            Vector3 facePosition = chunkPosition + localBlockPosition + FaceCenters[(int)faceNormal];
+            Vector3 facePosition = blockPos + FaceCenters[(int)faceNormal];
             // Sun occlusion
             float sunDot = Vector3.Dot(-sunDirection, directionVec);
             if (sunDot > 0f)
@@ -242,8 +250,22 @@ where TChunkDims : IChunkDims
             // Cave fog
             if (facePosition.Y < MinTerrainHeight)
                 brightness *= float.Lerp(1, minBrightness, (MathF.Max(facePosition.Y, MinTerrainHeight - 32) - MinTerrainHeight) / -32);
+            brightness = MathF.Max(brightness, minBrightness);
+            // Tint
+            Vector3 tint = Vector3.One;
+            if (block == Grass && faceNormal != Direction.Bottom) // Only Grass, not bottoms
+            {
+                tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
+                if (faceNormal != Direction.Top) // All sides
+                {
+                    // Create another face for the Grass Side to fill in the bottom with dirt with no tint.
+                    instances.Add(new(localBlockPosition, GrassSideDirt, Vector3.One * brightness, (int)faceNormal));
+                }
+            }
+            if (block == OakLeaves)
+                tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
 
-            instances.Add(new(localBlockPosition, block, Vector3.One * MathF.Max(brightness, minBrightness), (int)faceNormal));
+            instances.Add(new(localBlockPosition, block, tint * brightness, (int)faceNormal));
         }
     }
 
@@ -267,5 +289,6 @@ where TChunkDims : IChunkDims
     {
         FNL = new(Program.seed);
         FNL.SetFrequency(Program.worldScale);
+        CullingHandler.temperature.SetFrequency(Program.worldScale * 0.2f);
     }
 }
