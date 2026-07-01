@@ -186,6 +186,15 @@ where TChunkDims : IChunkDims
             }
     }
 
+    public void RedrawInstant(Vector3D<int> chunk)
+    {
+        CullingHandler cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
+        cullingHandler = cluster.CullChunk(chunk, cullingHandler);
+        shader.DeactivateChunk((Vector3)chunk);
+        if (cluster.IsActive(chunk) && cullingHandler.instances.Count > 0)
+            shader.RenderChunk((Vector3)chunk, [.. cullingHandler.instances]);
+    }
+
     private void CullAndShadeChunk(Vector3D<int> chunk)
     {
         CullingHandler cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);

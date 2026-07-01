@@ -15,6 +15,7 @@ using Silk.NET.Windowing;
 using ChunkDimensions = GalensUnified.CubicGrid.Core.ChunkDims;
 
 using static BlockIDs;
+using GalensUnified.CubicGrid.Framework.Player;
 
 static class Program
 {
@@ -28,6 +29,7 @@ static class Program
     public const float worldScale = 0.01f;
     public const int mountainHeight = 50;
     public static Vector3 camStartPos = new(8, mountainHeight + 8, 8);
+    const float InteractionRange = 10f;
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
     // Runtime
@@ -151,9 +153,26 @@ static class Program
             : new ChunkClusterDirector(generationPipeline, ChunkDimensions.Length, renderDistance, renderHeight, camStartPos.Floor(), 32);
 
         ChunkDirectorHandler<ChunkDimensions> registryHandler = new(chunkCluster, processor);
+        Action<Vector3D<int>> chunkUpdate = processor.RedrawInstant;
+        bool LMBHeld = false;
         window.Render += dt =>
         {
             frameStart = DateTime.Now;
+
+            bool ctrl = input.Keyboards[0].IsKeyPressed(Key.ControlLeft);
+            bool LMB = input.Mice[0].IsButtonPressed(MouseButton.Left);
+            if (LMB && (!LMBHeld || ctrl))
+            {
+                Interactions.AttemptBreak
+                (
+                    chunkCluster,
+                    camPosition,
+                    Vector3.Transform(-Vector3.UnitZ, Quaternion.CreateFromYawPitchRoll(camRotation.Y, camRotation.X, 0)),
+                    ctrl ? float.MaxValue : InteractionRange,
+                    chunkUpdate
+                );
+            }
+            LMBHeld = LMB;
 
             clusterRegistry.SetCentrePosition(camPosition.Floor());
             if (OverTargtetFrameTime())
