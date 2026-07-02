@@ -19,10 +19,15 @@ public class Interactions
             Vector3D<int> chunkPos = result.BlockPosition.FloorTo(TDims.Length);
             if (!cluster.TrySetBlock(result.BlockPosition, 0))
                 return result;
-            chunkUpdate(chunkPos);
+            cluster.TryRemoveBlockData(result.BlockPosition);
             for (Direction d = 0; d < (Direction)6; d++)
+            {
+                Vector3D<int> testPosition = result.BlockPosition + d.ToVector().Floor();
+                cluster.TryUpdateBlockData(testPosition, new ChunkCluster<TDims>.BlockUpdate<string>("Neighbor Broken"));
                 if (!ChunkMath<TDims>.PosLocal(ChunkMath<TDims>.LocalPosByGlobalPos(result.BlockPosition) + d.ToVector().Floor()))
                     chunkUpdate(chunkPos + d.ToVector().Floor() * TDims.Length);
+            }
+            chunkUpdate(chunkPos);
         }
         return result;
     }

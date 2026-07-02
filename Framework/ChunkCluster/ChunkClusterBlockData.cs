@@ -9,7 +9,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// <summary>Marker interface for per-instance block state.</summary>
     /// <remarks>Implementations must be class, not struct. One instance per block that has state.</remarks>
     public interface IBlockData;
-    private readonly IBlockData[] flattenedChunkBlockData;
+    private readonly IBlockData?[] flattenedChunkBlockData;
 
     /// <summary>Generic update payload passed to <see cref="IBlockBehavior.Update{TData}"/>.</summary>
     /// <typeparam name="TPayload">Type of the payload data carried by this update.</typeparam>
@@ -62,7 +62,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
         int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition);
         if (flattenedChunkBlockData[chunkIndex + blockIndex] == null)
             return false;
-        blockData = (TBlockData)flattenedChunkBlockData[chunkIndex + blockIndex];
+        blockData = (TBlockData?)flattenedChunkBlockData[chunkIndex + blockIndex];
         return true;
     }
 
@@ -83,6 +83,17 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
         return true;
     }
 
+    public bool TryRemoveBlockData(Vector3D<int> blockPosition)
+    {
+        Vector3D<int> chunkPosition = blockPosition.FloorTo(TChunkDims.Length);
+        int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(blockPosition));
+        if (!IsActive(chunkPosition))
+            return false;
+        int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition);
+        flattenedChunkBlockData[chunkIndex + blockIndex] = null;
+        return true;
+    }
+
     /// <summary>
     /// Signals an update to the block at <paramref name="blockPosition"/>. Reads the block ID,
     /// looks up its <see cref="IBlockBehavior"/> in <see cref="blockBehaviorByBlock"/>,
@@ -100,7 +111,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
             return false;
 
         int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition);
-        IBlockData blockData = flattenedChunkBlockData[chunkIndex + blockIndex];
+        IBlockData? blockData = flattenedChunkBlockData[chunkIndex + blockIndex];
         if (blockData == null)
             return false;
 

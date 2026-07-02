@@ -183,7 +183,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
         this.blockCount = checked(TChunkDims.Volume * chunkCount);
         this.flattenedChunks = new ushort[blockCount];
         this.blockBehaviorByBlock = blockBehaviorByBlock ?? [];
-        this.flattenedChunkBlockData = new IBlockData[blockCount];
+        this.flattenedChunkBlockData = new IBlockData?[blockCount];
     }
 
     /// <summary>Represents a collision where different positions produced the same index.</summary>
