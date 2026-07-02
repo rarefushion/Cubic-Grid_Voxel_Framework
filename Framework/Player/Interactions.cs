@@ -17,10 +17,8 @@ public class Interactions
         if (result.Block != 0 && result.Distance <= range)
         {
             Vector3D<int> chunkPos = result.BlockPosition.FloorTo(TDims.Length);
-            if (!cluster.TryGetChunk(chunkPos, out Span<ushort> chunk))
-                throw new Exception("Block hit but chunk was not found.");
-            int blockIndex = ChunkMath<TDims>.IndexByGlobalPos(result.BlockPosition);
-            chunk[blockIndex] = 0;
+            if (!cluster.TrySetBlock(result.BlockPosition, 0))
+                return result;
             chunkUpdate(chunkPos);
             for (Direction d = 0; d < (Direction)6; d++)
                 if (!ChunkMath<TDims>.PosLocal(ChunkMath<TDims>.LocalPosByGlobalPos(result.BlockPosition) + d.ToVector().Floor()))

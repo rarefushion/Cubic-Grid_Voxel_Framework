@@ -1,4 +1,5 @@
 using GalensUnified.CubicGrid.Core;
+using GalensUnified.CubicGrid.Core.Math;
 using Silk.NET.Maths;
 
 namespace GalensUnified.CubicGrid.Framework;
@@ -62,6 +63,47 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
             chunk = [];
             return false;
         }
+    }
+
+    /// <summary>Fetches a block ushort if returned true.</summary>
+    /// <returns>
+    /// True if the chunk containing <paramref name="blockPos"/> is active.
+    /// Else false, making <paramref name="block"/> empty.
+    /// </returns>
+    public bool TryGetBlock(Vector3D<int> blockPos, out ushort? block)
+    {
+        Vector3D<int> chunkPos = blockPos.FloorTo(TChunkDims.Length);
+        if (IsActive(chunkPos))
+        {
+            int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(chunkPos));
+            int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPos);
+            block = flattenedChunks[chunkIndex + blockIndex];
+            return true;
+        }
+        else
+        {
+            block = null;
+            return false;
+        }
+    }
+
+    /// <summary>Assigns the block at <paramref name="blockPos"/> to the provided <paramref name="block"/>.</summary>
+    /// <returns>
+    /// True if the chunk containing <paramref name="blockPos"/> is active.
+    /// Else false, leaving the block unchanged.
+    /// </returns>
+    public bool TrySetBlock(Vector3D<int> blockPos, ushort block)
+    {
+        Vector3D<int> chunkPos = blockPos.FloorTo(TChunkDims.Length);
+        if (IsActive(chunkPos))
+        {
+            int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(chunkPos));
+            int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPos);
+            flattenedChunks[chunkIndex + blockIndex] = block;
+            return true;
+        }
+        else
+            return false;
     }
 
     /// <summary>Registers a chunk as active.</summary>
