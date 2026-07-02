@@ -191,9 +191,4 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// <param name="collidingChunk">The position of the chunk that produces the same index as <paramref name="existingChunk"/>.</param>
     /// <param name="collidingIndex">The index that both chunk positions produce.</param>
     public class ChunkIndexCollisionException(Vector3D<int> existingChunk, Vector3D<int> collidingChunk, int collidingIndex, string message) : Exception(message);
-    /// <summary>Thrown when an operation is attempted on a chunk that is not active but is required.</summary>
-    /// <param name="chunkPosition">The position of the inactive chunk.</param>
-    /// <param name="chunkIndex">The flattened index of the inactive chunk.</param>
-    /// <param name="message">Description of the failed operation.</param>
-    public class ChunkInactiveException(Vector3D<int> chunkPosition, int chunkIndex, string message) : Exception(message);
 }

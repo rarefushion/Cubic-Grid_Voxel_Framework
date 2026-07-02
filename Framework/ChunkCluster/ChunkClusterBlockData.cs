@@ -70,16 +70,17 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// <typeparam name="TBlockData">The type of the block data. Must be a class implementing <see cref="IBlockData"/>.</typeparam>
     /// <param name="blockPosition">Global position of the block.</param>
     /// <param name="blockData">The data instance to store. Must not be null.</param>
-    /// <exception cref="ChunkInactiveException">The chunk containing <paramref name="blockPosition"/> is not active.</exception>
-    public void SetBlockData<TBlockData>(Vector3D<int> blockPosition, TBlockData blockData)
+    /// <returns>true chunk was active and data was set; otherwise false.</returns>
+    public bool TrySetBlockData<TBlockData>(Vector3D<int> blockPosition, TBlockData blockData)
     where TBlockData : class, IBlockData
     {
         Vector3D<int> chunkPosition = blockPosition.FloorTo(TChunkDims.Length);
         int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(blockPosition));
         if (!IsActive(chunkPosition))
-            throw new ChunkInactiveException(chunkPosition, chunkIndex, $"Requested block data in a chunk that is not active.");
+            return false;
         int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition);
         flattenedChunkBlockData[chunkIndex + blockIndex] = blockData;
+        return true;
     }
 
     /// <summary>
@@ -90,35 +91,27 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// <typeparam name="TData">Type of the update payload carried by <paramref name="blockUpdate"/>.</typeparam>
     /// <param name="blockPosition">Global position of the block to update.</param>
     /// <param name="blockUpdate">The update payload.</param>
-    /// <exception cref="ChunkInactiveException">The chunk containing <paramref name="blockPosition"/> is not active.</exception>
-    /// <exception cref="BlockDataNullReferenceException">No block data has been assigned to this block.</exception>
-    /// <exception cref="BlockBehaviorNullReferenceException">
-    /// The block ID at <paramref name="blockPosition"/> has no behavior registered in <see cref="blockBehaviorByBlock"/>,
-    /// or the registered slot is null.
-    /// </exception>
-    public void UpdateBlockData<TData>(Vector3D<int> blockPosition, BlockUpdate<TData> blockUpdate)
+    /// <returns>true if update was recieved; otherwise false.</returns>
+    public bool TryUpdateBlockData<TData>(Vector3D<int> blockPosition, BlockUpdate<TData> blockUpdate)
     {
         Vector3D<int> chunkPosition = blockPosition.FloorTo(TChunkDims.Length);
         int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(blockPosition));
         if (!IsActive(chunkPosition))
-            throw new ChunkInactiveException(chunkPosition, chunkIndex, $"Requested block data in a chunk that is not active.");
+            return false;
 
         int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition);
-        IBlockData blockData = flattenedChunkBlockData[chunkIndex + blockIndex]
-            ?? throw new BlockDataNullReferenceException(blockPosition, $"Requested block data that has not been assigned.");
+        IBlockData blockData = flattenedChunkBlockData[chunkIndex + blockIndex];
+        if (blockData == null)
+            return false;
 
         int block = flattenedChunks[chunkIndex + blockIndex];
         if (blockBehaviorByBlock.Length <= block)
-            throw new BlockBehaviorNullReferenceException(block, $"Block({block}) has no behavior assigned.");
-        IBlockBehavior blockBehavior = blockBehaviorByBlock[block]
-            ?? throw new BlockBehaviorNullReferenceException(block, $"Block({block}) has no behavior assigned.");
+            return false;
+        IBlockBehavior? blockBehavior = blockBehaviorByBlock[block];
+        if (blockBehavior == null)
+            return false;
 
         blockBehavior.Update(blockPosition, blockData, blockUpdate);
+        return true;
     }
-
-    /// <summary>Thrown when block data is requested for a block that has no <see cref="IBlockData"/> assigned.</summary>
-    public class BlockDataNullReferenceException(Vector3D<int> blockPosition, string message) : Exception(message);
-
-    /// <summary>Thrown when a block ID has no <see cref="IBlockBehavior"/> registered in <see cref="blockBehaviorByBlock"/>.</summary>
-    public class BlockBehaviorNullReferenceException(int block, string message) : Exception(message);
 }
