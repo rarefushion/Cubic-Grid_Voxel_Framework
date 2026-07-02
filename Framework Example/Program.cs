@@ -16,6 +16,7 @@ using ChunkDimensions = GalensUnified.CubicGrid.Core.ChunkDims;
 
 using static BlockIDs;
 using GalensUnified.CubicGrid.Framework.Player;
+using System.Collections.Concurrent;
 
 static class Program
 {
@@ -45,6 +46,7 @@ static class Program
         WindowOptions options = WindowOptions.Default;
         options.Title = "Cubic-Grid Voxel Rendering Example";
         options.PreferredDepthBufferBits = 32;
+        options.Samples = 8;
         IWindow window = Window.Create(options);
         window.Load += () => Load(window);
         window.Run();
@@ -90,11 +92,13 @@ static class Program
             {Dirt, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},
             {Stone, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")},
             {OakLog, new("oak_log", "oak_log", "oak_log_top", "oak_log_top", "oak_log", "oak_log")},
-            {OakLeaves, new("oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves")}
+            {OakLeaves, new("oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves")},
+            {Water, new("Water", "Water", "Water", "Water", "Water", "Water")}
         };
         foreach (ushort block in renderDataByBlock.Keys)
             BlockCulling.transparencyModeByBlock.TryAdd(block, BlockCulling.TransparencyMode.Opaque);
         BlockCulling.transparencyModeByBlock[OakLeaves] = BlockCulling.TransparencyMode.RenderOnTransparent;
+        BlockCulling.transparencyModeByBlock[Water] = BlockCulling.TransparencyMode.RenderOnTransparent;
 
         // Create Graphics and Shader
         long worldVolume = checked(WorldLengthInChunks * WorldLengthInChunks * WorldHeightInChunks * ChunkDimensions.Volume);
@@ -105,6 +109,8 @@ static class Program
         graphics.DepthFunc(DepthFunction.Less);
         graphics.Enable(EnableCap.CullFace);
         graphics.CullFace(GLEnum.Back); // Back face culling doesn't seem to effect performance but looks better for transparent blocks.
+        graphics.Enable(EnableCap.Multisample);
+        graphics.Enable(EnableCap.SampleAlphaToCoverage);
         graphics.ClearColor(System.Drawing.Color.CornflowerBlue);
         window.Resize += size => graphics.Viewport(0, 0, (uint)size.X, (uint)size.Y);
         window.Update += delta => graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
@@ -144,16 +150,26 @@ static class Program
             CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
             CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
+        // Block Behaviors
+        int behaviorCount = Water + 1;
+        ChunkCluster<ChunkDimensions>.IBlockBehavior?[] blockBehaviors = new ChunkCluster<ChunkDimensions>.IBlockBehavior?[behaviorCount];
+        for (int i = 0; i < behaviorCount; i++)
+            blockBehaviors[i] = null;
+        blockBehaviors[Water] = new WaterBlockData<ChunkDimensions>();
         // Chunk Management
-        ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks);
+        ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
         ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         IChunkClusterDirector clusterRegistry = lockGenerationHeight
             ? new ChunkClusterDirectorFlat(generationPipeline, ChunkDimensions.Length, renderDistance, camStartPos.Floor(), 32)
             : new ChunkClusterDirector(generationPipeline, ChunkDimensions.Length, renderDistance, renderHeight, camStartPos.Floor(), 32);
 
+        WaterBlockData<ChunkDimensions>.cluster = chunkCluster;
+        WaterBlockData<ChunkDimensions>.processor = processor;
+
         ChunkDirectorHandler<ChunkDimensions> registryHandler = new(chunkCluster, processor);
         Action<Vector3D<int>> chunkUpdate = processor.RedrawInstant;
+        // Render Loop
         bool LMBHeld = false;
         window.Render += dt =>
         {
@@ -177,6 +193,16 @@ static class Program
             clusterRegistry.SetCentrePosition(camPosition.Floor());
             if (OverTargtetFrameTime())
                 return;
+
+            Vector3D<int>[] chunkProcesses = [.. processor.NeedsProcessingByChunk.Keys];
+            foreach (Vector3D<int> chunk in chunkProcesses)
+                if (processor.NeedsProcessingByChunk.TryRemove(chunk, out ConcurrentQueue<Action>? processes))
+                    backgroundThreadBatch.EnqueueJob(() =>
+                    {
+                        while (processes.TryDequeue(out Action process))
+                            process();
+                        processor.Redraw(chunk);
+                    });
 
             while (processor.NeedRendering.TryDequeue(out var result))
             {

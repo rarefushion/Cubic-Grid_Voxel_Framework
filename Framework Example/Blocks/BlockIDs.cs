@@ -9,4 +9,5 @@ public static class BlockIDs
     public const ushort Stone = 4;
     public const ushort OakLog = 5;
     public const ushort OakLeaves = 6;
+    public const ushort Water = 7;
 }

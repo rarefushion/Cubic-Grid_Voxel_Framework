@@ -14,6 +14,7 @@ public enum ChunkGenerationStage
 {
     CalculatingPoints, // Individual blocks
     EnableInCluster, // Tell the Cluster that this chunk is enabled, the cluster's tracker is not concurrent
+    UpdateBehaviors,
     CullAndShade // Create the face instances to render
 }
 
@@ -44,12 +45,14 @@ where TChunkDims : IChunkDims
     private static readonly FastNoiseLite FNL;
     private static readonly IStructureGeneration[] structures =
     [
-        new Tree<TChunkDims>()
+        new Tree<TChunkDims>(),
+        new WaterSourceStructure<TChunkDims>()
     ];
 
 
     public record RenderChunk(Vector3 Position, CubeFaceInstance[] Faces);
     public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
+    public readonly ConcurrentDictionary<Vector3D<int>, ConcurrentQueue<Action>> NeedsProcessingByChunk = [];
 
     /// <summary>Gets the center of a face of a cube using the standardized order: -z, +z, +y, -y, -x then +x.</summary>
     public static readonly Vector3[] FaceCenters =
@@ -66,6 +69,7 @@ where TChunkDims : IChunkDims
     {
         ChunkGenerationStage.CalculatingPoints => new ChunkTaskGate.Proceed(),
         ChunkGenerationStage.EnableInCluster => new ChunkTaskGate.Proceed(),
+        ChunkGenerationStage.UpdateBehaviors => new ChunkTaskGate.Proceed(),
         ChunkGenerationStage.CullAndShade => new ChunkTaskGate.Proceed(),
         _ => new ChunkTaskGate.Halt.Complete()
     };
@@ -74,6 +78,7 @@ where TChunkDims : IChunkDims
     {
         ChunkGenerationStage.CalculatingPoints => new ChunkTaskType.Async<Vector3D<int>>(CalculatePointsAsync),
         ChunkGenerationStage.EnableInCluster => new ChunkTaskType.Synchronous<Vector3D<int>>(EnableInCluster),
+        ChunkGenerationStage.UpdateBehaviors => new ChunkTaskType.Async<Vector3D<int>>(UpdateBlockBehaviorsTask),
         ChunkGenerationStage.CullAndShade => new ChunkTaskType.Async<Vector3D<int>>(RenderTask),
         _ => throw new Exception($"Stage '{stage}' doesn't exist.")
     };
@@ -162,6 +167,36 @@ where TChunkDims : IChunkDims
         return Task.CompletedTask;
     }
 
+    public async Task UpdateBlockBehaviorsTask(Vector3D<int> chunk, int stage)
+    {
+        if (!Program.lockGenerationHeight)
+            UpdateBlockBehaviors(chunk);
+        else
+            for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
+            {
+                chunk.Y = y * TChunkDims.Length;
+                UpdateBlockBehaviors(chunk);
+            }
+    }
+
+    public void UpdateBlockBehaviors(Vector3D<int> chunk)
+    {
+        Span<ushort> blocks = cluster.GetChunkByPosition(chunk);
+        for (int blockZ = 0; blockZ < TChunkDims.Length; blockZ++)
+        for (int blockX = 0; blockX < TChunkDims.Length; blockX++)
+        for (int blockY = 0; blockY < TChunkDims.Length; blockY++)
+        {
+            int i = (blockZ * TChunkDims.Length + blockY) * TChunkDims.Length + blockX;
+            if (blocks[i] == Water)
+            {
+                Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunk;
+                if (!cluster.TryGetBlockData<WaterBlockData<TChunkDims>>(blockPos, out _))
+                    cluster.TrySetBlockData(blockPos, new WaterBlockData<TChunkDims>());
+                cluster.TryUpdateBlockData(blockPos,  new ChunkCluster<TChunkDims>.BlockUpdate<string>("Spawned"));
+            }
+        }
+    }
+
     public async Task RenderTask(Vector3D<int> chunk, int stage)
     {
         if (!Program.lockGenerationHeight)
@@ -177,14 +212,22 @@ where TChunkDims : IChunkDims
     public void CullReRender(Vector3D<int> chunk)
     {
         if (!Program.lockGenerationHeight)
+        {
+            UpdateBlockBehaviors(chunk);
             Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(chunk));
+        }
         else
             for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
             {
-                chunk.Y = y * TChunkDims.Length;
-                Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(chunk));
+                Vector3D<int> subChunk = chunk;
+                subChunk.Y = y * TChunkDims.Length;
+                UpdateBlockBehaviors(subChunk);
+                Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(subChunk));
             }
     }
+
+    public void Redraw(Vector3D<int> chunk) =>
+        Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(chunk));
 
     public void RedrawInstant(Vector3D<int> chunk)
     {
@@ -216,6 +259,8 @@ where TChunkDims : IChunkDims
         public static FastNoiseLite temperature = new(Program.seed);
         static readonly Vector3 lush = new(0.0f, 1.0f, 0.0f); // rgb(0, 255, 0)
         static readonly Vector3 autumn = new(1, 0.53f, 0.17f); // rgb(255, 136, 44)
+        static readonly Vector3 autumnWater = new(0.39f, 0.0f, 1.0f); // rgb(100, 0, 255)
+        static readonly Vector3 lushWater = new(0.0f, 1.0f, 1.0f); // rgb(0, 255, 255)
 
         public static float GetTemperature(Vector3 position) =>
             (temperature.GetNoise(position.X, position.Z) + 1) / 2;
@@ -273,6 +318,8 @@ where TChunkDims : IChunkDims
             }
             if (block == OakLeaves)
                 tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
+            if (block == Water)
+                tint = Vector3.Lerp(autumnWater, lushWater, GetTemperature(blockPos));
 
             instances.Add(new(localBlockPosition, block, tint * brightness, (int)faceNormal));
         }
