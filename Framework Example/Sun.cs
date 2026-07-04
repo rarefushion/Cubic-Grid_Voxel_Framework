@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using GalensUnified.CubicGrid.Renderer.NET;
+using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 using Silk.NET.OpenGL;
 
 public static class Sun
@@ -78,12 +78,12 @@ public static class Sun
                 verts[vert + (face * 4)] =
                     new Vertex()
                     {
-                        Position = (CubeMesh.vertices[CubeMesh.quads[4 * face + vert]] * scale) + (-direction * distance),
+                        Position = (Cube.vertices[Cube.quads[4 * face + vert]] * scale) + (-direction * distance),
                         Color = color
                     };
 
             for (int indice = 0; indice < 6; indice++)
-                indices[indice + (face * 6)] = (uint)(CubeMesh.quadsOffsetForTris[indice] + (face * 4));
+                indices[indice + (face * 6)] = (uint)(Cube.quadsOffsetForTris[indice] + (face * 4));
         }
         // Upload Vertices
         GL.UseProgram(shaderProgram);

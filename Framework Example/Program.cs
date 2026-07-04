@@ -17,6 +17,7 @@ using ChunkDimensions = GalensUnified.CubicGrid.Core.ChunkDims;
 using static BlockIDs;
 using GalensUnified.CubicGrid.Framework.Player;
 using System.Collections.Concurrent;
+using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 
 static class Program
 {
@@ -82,23 +83,44 @@ static class Program
         input.Mice[0].MouseMove += (mouse, pos) => camRotation += GetCameraRotationDelta(mouse, pos, mouseSensitivity);
         window.Update += delta => camPosition += GetCameraPositionDelta(delta, input, camRotation.Y);
 
+        // Load assets
+        DirectoryInfo assets = Directory.CreateDirectory(Path.Combine(ApplicationEnvironment.ApplicationBasePath, "Assets"));
+        FileInfo[] textureFiles = Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles();
+        TextureLoader.Texture[] textures = TextureLoader.LoadImages(textureFiles);
+        BlockRenderData.Factory BRDFactory = new(textures);
         // Create Blocks
+        // Shapes
+        List<Shape> shapes = [];
+        Cube cube = new();
+        shapes.AddRange(cube.Create(shapes.Count));
+        shapes.AddRange(WaterRendering.CreatShapes(cube.shapeIDByFace[(int)Direction.Top], cube.shapeIDByFace[(int)Direction.Bottom], shapes.Count));
         // Faces are named by the Assets/Textures file name.
-        Dictionary<ushort, BlockRenderData> renderDataByBlock = new()
-        {
-            {Air, new("Null", "Null", "Null", "Null", "Null", "Null")},
-            {Grass, new("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side")},
-            {GrassSideDirt, new("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt")},
-            {Dirt, new("Dirt", "Dirt", "Dirt", "Dirt", "Dirt", "Dirt")},
-            {Stone, new("Stone", "Stone", "Stone", "Stone", "Stone", "Stone")},
-            {OakLog, new("oak_log", "oak_log", "oak_log_top", "oak_log_top", "oak_log", "oak_log")},
-            {OakLeaves, new("oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves", "oak_leaves")},
-            {Water, new("Water", "Water", "Water", "Water", "Water", "Water")}
-        };
-        foreach (ushort block in renderDataByBlock.Keys)
-            BlockCulling.transparencyModeByBlock.TryAdd(block, BlockCulling.TransparencyMode.Opaque);
+        BlockRenderData.renderDataByBlock =
+        [
+            // Air
+            new(0, 0, 0, 0, 0, 0, cube),
+            // Grass
+            BRDFactory.CreateWithNames("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side", cube),
+            // GrassSideDirt
+            BRDFactory.CreateWithNames("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt", cube),
+            // Dirt
+            BRDFactory.CreateWithName("Dirt", cube),
+            // Stone
+            BRDFactory.CreateWithName("Stone", cube),
+            // OakLog
+            BRDFactory.CreateWithName("oak_log", cube),
+            // OakLeaves
+            BRDFactory.CreateWithName("oak_leaves", cube),
+            // WaterFull
+            BRDFactory.CreateWithName("Water", cube),
+            // Water Levels
+            .. WaterRendering.shapeByWaterLevel.Select(shape => BRDFactory.CreateWithName("Water", shape))
+        ];
+        for (ushort i = 0; i < BlockRenderData.renderDataByBlock.Length; i++)
+            BlockCulling.transparencyModeByBlock.TryAdd(i, BlockCulling.TransparencyMode.Opaque);
         BlockCulling.transparencyModeByBlock[OakLeaves] = BlockCulling.TransparencyMode.RenderOnTransparent;
-        BlockCulling.transparencyModeByBlock[Water] = BlockCulling.TransparencyMode.RenderOnTransparent;
+        for (ushort i = 0; i <= WaterLevels; i++)
+            BlockCulling.transparencyModeByBlock[WaterRendering.GetBlock(i)] = BlockCulling.TransparencyMode.RenderOnTransparent;
 
         // Create Graphics and Shader
         long worldVolume = checked(WorldLengthInChunks * WorldLengthInChunks * WorldHeightInChunks * ChunkDimensions.Volume);
@@ -114,17 +136,16 @@ static class Program
         graphics.ClearColor(System.Drawing.Color.CornflowerBlue);
         window.Resize += size => graphics.Viewport(0, 0, (uint)size.X, (uint)size.Y);
         window.Update += delta => graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-        DirectoryInfo assets = Directory.CreateDirectory(Path.Combine(ApplicationEnvironment.ApplicationBasePath, "Assets"));
         // Ambiguous between mine and Silk.NET.OpenGL.Shader :sob:
         GalensUnified.CubicGrid.Renderer.NET.Shader shader = new
         (
             graphics,
             Path.Combine(assets.FullName, "GLSL"),
             ChunkDimensions.Length,
-            ChunkDimensions.Volume * CubeFaceInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
+            ChunkDimensions.Volume  * ShapeInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
             camNearPlane,
-            renderDataByBlock,
-            TextureLoader.LoadImages(Directory.CreateDirectory(Path.Combine(assets.FullName, "Textures")).GetFiles()),
+            [.. textures.Select(t => t.Image)],
+            [.. shapes],
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
@@ -151,11 +172,12 @@ static class Program
             CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
         );
         // Block Behaviors
-        int behaviorCount = Water + 1;
+        int behaviorCount = WaterFull + WaterLevels + 1;
         ChunkCluster<ChunkDimensions>.IBlockBehavior?[] blockBehaviors = new ChunkCluster<ChunkDimensions>.IBlockBehavior?[behaviorCount];
         for (int i = 0; i < behaviorCount; i++)
             blockBehaviors[i] = null;
-        blockBehaviors[Water] = new WaterBlockData<ChunkDimensions>();
+        for (int i = 0; i < WaterLevels; i++)
+            blockBehaviors[WaterFull + i] = new WaterBlockData<ChunkDimensions>();
         // Chunk Management
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
         ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f);
@@ -208,8 +230,8 @@ static class Program
             {
                 if (shader.chunkByPos.ContainsKey(result.Position))
                     shader.DeactivateChunk(result.Position);
-                if (chunkCluster.IsActive(result.Position.Floor()) && result.Faces.Length > 0)
-                    shader.RenderChunk(result.Position, result.Faces);
+                if (chunkCluster.IsActive(result.Position.Floor()) && result.Shapes.Length > 0)
+                    shader.RenderChunk(result.Position, result.Shapes);
                 if (OverTargtetFrameTime())
                     return;
             }

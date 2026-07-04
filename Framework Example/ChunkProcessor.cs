@@ -50,7 +50,7 @@ where TChunkDims : IChunkDims
     ];
 
 
-    public record RenderChunk(Vector3 Position, CubeFaceInstance[] Faces);
+    public record RenderChunk(Vector3 Position, ShapeInstance[] Shapes);
     public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
     public readonly ConcurrentDictionary<Vector3D<int>, ConcurrentQueue<Action>> NeedsProcessingByChunk = [];
 
@@ -187,7 +187,7 @@ where TChunkDims : IChunkDims
         for (int blockY = 0; blockY < TChunkDims.Length; blockY++)
         {
             int i = (blockZ * TChunkDims.Length + blockY) * TChunkDims.Length + blockX;
-            if (blocks[i] == Water)
+            if (WaterRendering.IsWater(blocks[i]))
             {
                 Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunk;
                 if (!cluster.TryGetBlockData<WaterBlockData<TChunkDims>>(blockPos, out _))
@@ -254,7 +254,8 @@ where TChunkDims : IChunkDims
         ChunkCluster<TChunkDims> cluster
     ) : IBlockCullingHandler
     {
-        public readonly List<CubeFaceInstance> instances = [];
+        public readonly List<ShapeInstance> instances = [];
+        private List<Vector3> tintStorage = []; // We don't want to allocate this for every shape
 
         public static FastNoiseLite temperature = new(Program.seed);
         static readonly Vector3 lush = new(0.0f, 1.0f, 0.0f); // rgb(0, 255, 0)
@@ -267,10 +268,30 @@ where TChunkDims : IChunkDims
 
         public readonly void CullBegan() { }
 
-        public readonly void FaceVisible(Vector3 localBlockPosition, ushort block, Direction faceNormal)
+        public void ShapeVisible(Vector3 localBlockPosition, ushort block, List<Direction> facesVisible)
         {
             Vector3 blockPos = chunkPosition + localBlockPosition;
-            // Shade
+            BlockRenderData renderData = BlockRenderData.renderDataByBlock[block];
+            tintStorage.Clear();
+            for (int i = 0; i < facesVisible.Count; i++)
+            {
+                if (block == 1 && facesVisible[i] is not (Direction.Top or Direction.Bottom))
+                {
+                    // Create another face for the Grass Side to fill in the bottom with dirt with no tint.
+                    float shadow = GetShadow(blockPos, block, facesVisible[i]);
+                    BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[GrassSideDirt];
+                    instances.AddRange(grassSideDirtRD.Instance(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0));
+                }
+                tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
+            }
+            // Rotation
+            Direction up = Direction.Top;
+            int forward = 0;
+            instances.AddRange(renderData.Instance(localBlockPosition, tintStorage, facesVisible, up, forward));
+        }
+
+        private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)
+        {
             float brightness = 1;
             Vector3 directionVec = faceNormal.ToVector();
             Vector3 facePosition = blockPos + FaceCenters[(int)faceNormal];
@@ -304,24 +325,23 @@ where TChunkDims : IChunkDims
             // Cave fog
             if (facePosition.Y < MinTerrainHeight)
                 brightness *= float.Lerp(1, minBrightness, (MathF.Max(facePosition.Y, MinTerrainHeight - 32) - MinTerrainHeight) / -32);
-            brightness = MathF.Max(brightness, minBrightness);
-            // Tint
+            return MathF.Max(brightness, minBrightness);
+        }
+
+        private readonly Vector3 GetShadedTint(Vector3 blockPos, ushort block, Direction faceNormal)
+        {
+            float shadow = GetShadow(blockPos, block, faceNormal);
+
             Vector3 tint = Vector3.One;
             if (block == Grass && faceNormal != Direction.Bottom) // Only Grass, not bottoms
             {
                 tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
-                if (faceNormal != Direction.Top) // All sides
-                {
-                    // Create another face for the Grass Side to fill in the bottom with dirt with no tint.
-                    instances.Add(new(localBlockPosition, GrassSideDirt, Vector3.One * brightness, (int)faceNormal));
-                }
             }
             if (block == OakLeaves)
                 tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
-            if (block == Water)
+            if (WaterRendering.IsWater(block))
                 tint = Vector3.Lerp(autumnWater, lushWater, GetTemperature(blockPos));
-
-            instances.Add(new(localBlockPosition, block, tint * brightness, (int)faceNormal));
+            return tint * shadow;
         }
     }
 

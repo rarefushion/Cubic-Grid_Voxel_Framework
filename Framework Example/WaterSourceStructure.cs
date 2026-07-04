@@ -53,7 +53,7 @@ public class WaterSourceStructure<TChunkDims> : IStructureGeneration
     public ushort GetBlock(Vector3D<int> LocalPosition)
     {
         if (LocalPosition == Vector3D<int>.Zero)
-            return Water;
+            return WaterFull;
         return 0;
     }
 }
