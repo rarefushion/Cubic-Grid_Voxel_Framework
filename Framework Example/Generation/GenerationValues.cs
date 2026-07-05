@@ -1,12 +1,22 @@
 using System.Numerics;
 using Silk.NET.Maths;
 
+using static BlockIDs;
+
 public static class GenerationValues
 {
     public const int Seed = 1337;
     public const float WorldScale = 0.01f;
     public const int MountainHeight = 50;
     public const int MinTerrainHeight = 0;
+    /// <summary>Usually dirt bellow the surface.</summary>
+    public const int RegolithDepth = 4;
+    public const ushort DefaultAtmosphereBlock = Air;
+    public const ushort DefaultSurfaceBlock = Grass;
+    /// <summary>Usually dirt bellow the surface.</summary>
+    public const ushort DefaultRegolithBlock = Dirt;
+    public const ushort DefaultUndergroundBlock = Stone;
+    public const ushort DefaultCaveVoidBlock = Air;
 
     private static readonly FastNoiseLite FNL;
     public static FastNoiseLite Temperature;

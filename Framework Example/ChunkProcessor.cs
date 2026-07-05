@@ -98,17 +98,17 @@ where TChunkDims : IChunkDims
             int mountainHeight = GetMountainHeight(blockPos);
             int i = (blockZ * TChunkDims.Length + blockY) * TChunkDims.Length + blockX;
             if (blockPos.Y > mountainHeight)
-                blocks[i] = Air;
+                blocks[i] = DefaultAtmosphereBlock;
             else if (blockPos.Y == mountainHeight)
-                blocks[i] = Grass;
-            else if (blockPos.Y > mountainHeight - 5)
-                blocks[i] = Dirt;
+                blocks[i] = DefaultSurfaceBlock;
+            else if (blockPos.Y >= mountainHeight - RegolithDepth)
+                blocks[i] = DefaultRegolithBlock;
             else
-                blocks[i] = Stone;
+                blocks[i] = DefaultUndergroundBlock;
             blocks[i] = (Math.Abs(blockPos.X) % TChunkDims.Length == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
             blocks[i] = (Math.Abs(blockPos.Z) % TChunkDims.Length == 0 && blocks[i] == Grass) ? Dirt : blocks[i];
-            if (IsErodid(blockPos))
-                blocks[i] = Air;
+            if (blockPos.Y <= mountainHeight && IsErodid(blockPos))
+                blocks[i] = DefaultCaveVoidBlock;
             // Place Structures
             foreach ((IStructureGeneration type, GeneratedStructureData[] dataEntries) in structureDataByType)
             foreach (GeneratedStructureData data in dataEntries)
