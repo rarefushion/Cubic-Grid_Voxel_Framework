@@ -1,14 +1,12 @@
 using System.Collections.Concurrent;
 using System.Numerics;
 using GalensUnified.CubicGrid.Core;
-using GalensUnified.CubicGrid.Core.Math;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.CubicGrid.Framework.Structures;
 using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
 
 using static BlockIDs;
-using static GalensUnified.CubicGrid.Core.Raycasting;
 
 public enum ChunkGenerationStage
 {
@@ -29,16 +27,12 @@ public class ChunkProcessor<TChunkDims>
 : IChunkProcessor<Vector3D<int>>
 where TChunkDims : IChunkDims
 {
-    private const int maxSkyShadeDisWithSun = 25;
-    private const float skyOccludedShade = 0.2f;
-    private const float abientOcclusionShade = 0.05f;
     public const int MinTerrainHeight = 0;
     public static readonly int HeighestPointInChunks =
         (int)float.Ceiling((Program.mountainHeight + MaxStructureHeight + MinTerrainHeight) / (float)TChunkDims.Length);
     public static readonly int LowestPointInChunks = HeighestPointInChunks - Program.WorldHeightInChunks;
 
     public static int MaxStructureHeight => Tree<TChunkDims>.GetHeight;
-    private readonly Vector3 sun = sunDirection;
 
     private readonly ChunkCluster<TChunkDims> cluster = cluster;
     private readonly Shader shader = shader;
@@ -53,17 +47,6 @@ where TChunkDims : IChunkDims
     public record RenderChunk(Vector3 Position, ShapeInstance[] Shapes);
     public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
     public readonly ConcurrentDictionary<Vector3D<int>, ConcurrentQueue<Action>> NeedsProcessingByChunk = [];
-
-    /// <summary>Gets the center of a face of a cube using the standardized order: -z, +z, +y, -y, -x then +x.</summary>
-    public static readonly Vector3[] FaceCenters =
-    [
-        new( 0.50f,  0.50f, -0.01f),
-        new( 0.50f,  0.50f,  1.01f),
-        new( 0.50f,  1.01f,  0.50f),
-        new( 0.50f, -0.01f,  0.50f),
-        new(-0.01f,  0.50f,  0.50f),
-        new( 1.01f,  0.50f,  0.50f),
-    ];
 
     public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
     {
@@ -231,7 +214,7 @@ where TChunkDims : IChunkDims
 
     public void RedrawInstant(Vector3D<int> chunk)
     {
-        CullingHandler cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
+        ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
         cullingHandler = cluster.CullChunk(chunk, cullingHandler);
         shader.DeactivateChunk((Vector3)chunk);
         if (cluster.IsActive(chunk) && cullingHandler.instances.Count > 0)
@@ -240,109 +223,9 @@ where TChunkDims : IChunkDims
 
     private void CullAndShadeChunk(Vector3D<int> chunk)
     {
-        CullingHandler cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
+        ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
         cullingHandler = cluster.CullChunk(chunk, cullingHandler);
         NeedRendering.Enqueue(new((Vector3)chunk, [.. cullingHandler.instances]));
-    }
-
-    struct CullingHandler
-    (
-        Vector3 chunkPosition,
-        Vector3 sunDirection,
-        float sunOccludedShade,
-        float minBrightness,
-        ChunkCluster<TChunkDims> cluster
-    ) : IBlockCullingHandler
-    {
-        public readonly List<ShapeInstance> instances = [];
-        private List<Vector3> tintStorage = []; // We don't want to allocate this for every shape
-
-        public static FastNoiseLite temperature = new(Program.seed);
-        static readonly Vector3 lush = new(0.0f, 1.0f, 0.0f); // rgb(0, 255, 0)
-        static readonly Vector3 autumn = new(1, 0.53f, 0.17f); // rgb(255, 136, 44)
-        static readonly Vector3 autumnWater = new(0.39f, 0.0f, 1.0f); // rgb(100, 0, 255)
-        static readonly Vector3 lushWater = new(0.0f, 1.0f, 1.0f); // rgb(0, 255, 255)
-
-        public static float GetTemperature(Vector3 position) =>
-            (temperature.GetNoise(position.X, position.Z) + 1) / 2;
-
-        public readonly void CullBegan() { }
-
-        public void ShapeVisible(Vector3 localBlockPosition, ushort block, List<Direction> facesVisible)
-        {
-            Vector3 blockPos = chunkPosition + localBlockPosition;
-            BlockRenderData renderData = BlockRenderData.renderDataByBlock[block];
-            tintStorage.Clear();
-            for (int i = 0; i < facesVisible.Count; i++)
-            {
-                if (block == 1 && facesVisible[i] is not (Direction.Top or Direction.Bottom))
-                {
-                    // Create another face for the Grass Side to fill in the bottom with dirt with no tint.
-                    float shadow = GetShadow(blockPos, block, facesVisible[i]);
-                    BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[GrassSideDirt];
-                    instances.AddRange(grassSideDirtRD.Instance(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0));
-                }
-                tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
-            }
-            // Rotation
-            Direction up = Direction.Top;
-            int forward = 0;
-            instances.AddRange(renderData.Instance(localBlockPosition, tintStorage, facesVisible, up, forward));
-        }
-
-        private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)
-        {
-            float brightness = 1;
-            Vector3 directionVec = faceNormal.ToVector();
-            Vector3 facePosition = blockPos + FaceCenters[(int)faceNormal];
-            // Sun occlusion
-            float sunDot = Vector3.Dot(-sunDirection, directionVec);
-            if (sunDot > 0f)
-            {
-                if (cluster.Raycast(facePosition, -sunDirection).Block != Air)
-                    brightness -= sunOccludedShade;
-                else
-                    brightness -= sunOccludedShade * (1 - sunDot);
-            }
-            else
-                brightness -= sunOccludedShade;
-            // Sky occlusion
-            RaycastResult skyRayResult = cluster.Raycast(facePosition, Vector3.UnitY);
-            if (skyRayResult.Block != Air)
-            {
-                brightness -= skyOccludedShade * (1 - (MathF.Min(MathF.Floor(skyRayResult.Distance - 0.5f), maxSkyShadeDisWithSun) / maxSkyShadeDisWithSun));
-            }
-            // Ambient occlusion
-            foreach (Direction testDirection in Enum.GetValues<Direction>())
-            {
-                Vector3 testVec = testDirection.ToVector();
-                if (directionVec == testVec || directionVec == -testVec)
-                    continue;
-                RaycastResult testRayResult = cluster.Raycast(facePosition, testVec);
-                if (testRayResult.Block != 0 && testRayResult.Distance < 1f)
-                    brightness -= abientOcclusionShade;
-            }
-            // Cave fog
-            if (facePosition.Y < MinTerrainHeight)
-                brightness *= float.Lerp(1, minBrightness, (MathF.Max(facePosition.Y, MinTerrainHeight - 32) - MinTerrainHeight) / -32);
-            return MathF.Max(brightness, minBrightness);
-        }
-
-        private readonly Vector3 GetShadedTint(Vector3 blockPos, ushort block, Direction faceNormal)
-        {
-            float shadow = GetShadow(blockPos, block, faceNormal);
-
-            Vector3 tint = Vector3.One;
-            if (block == Grass && faceNormal != Direction.Bottom) // Only Grass, not bottoms
-            {
-                tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
-            }
-            if (block == OakLeaves)
-                tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
-            if (WaterRendering.IsWater(block))
-                tint = Vector3.Lerp(autumnWater, lushWater, GetTemperature(blockPos));
-            return tint * shadow;
-        }
     }
 
     public void Deactivate(Vector3D<int> chunk)
@@ -365,6 +248,6 @@ where TChunkDims : IChunkDims
     {
         FNL = new(Program.seed);
         FNL.SetFrequency(Program.worldScale);
-        CullingHandler.temperature.SetFrequency(Program.worldScale * 0.2f);
+        ShapeInstancer<TChunkDims>.temperature.SetFrequency(Program.worldScale * 0.2f);
     }
 }
