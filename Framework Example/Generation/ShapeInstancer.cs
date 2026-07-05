@@ -2,7 +2,9 @@ using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.CubicGrid.Renderer.NET;
+
 using static BlockIDs;
+using static GenerationValues;
 using static GalensUnified.CubicGrid.Core.Raycasting;
 
 /// <summary>
@@ -28,16 +30,9 @@ where TChunkDims : IChunkDims
     private const int maxSkyShadeDisWithSun = 25;
     private const float skyOccludedShade = 0.2f;
     private const float abientOcclusionShade = 0.05f;
-    private const int MinTerrainHeight = ChunkProcessor<TChunkDims>.MinTerrainHeight;
 
     public readonly List<ShapeInstance> instances = [];
     private readonly List<Vector3> tintStorage = []; // We don't want to allocate this for every shape
-
-    public static FastNoiseLite temperature = new(Program.seed);
-    static readonly Vector3 lush = new(0.0f, 1.0f, 0.0f); // rgb(0, 255, 0)
-    static readonly Vector3 autumn = new(1, 0.53f, 0.17f); // rgb(255, 136, 44)
-    static readonly Vector3 autumnWater = new(0.39f, 0.0f, 1.0f); // rgb(100, 0, 255)
-    static readonly Vector3 lushWater = new(0.0f, 1.0f, 1.0f); // rgb(0, 255, 255)
 
     /// <summary>Gets the center of a face of a cube using the standardized order: -z, +z, +y, -y, -x then +x.</summary>
     public static readonly Vector3[] FaceCenters =
@@ -49,9 +44,6 @@ where TChunkDims : IChunkDims
         new(-0.01f,  0.50f,  0.50f),
         new( 1.01f,  0.50f,  0.50f),
     ];
-
-    public static float GetTemperature(Vector3 position) =>
-        (temperature.GetNoise(position.X, position.Z) + 1) / 2;
 
     public readonly void CullBegan() { }
 
@@ -122,12 +114,12 @@ where TChunkDims : IChunkDims
         Vector3 tint = Vector3.One;
         if (block == Grass && faceNormal != Direction.Bottom) // Only Grass, not bottoms
         {
-            tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
+            tint = Vector3.Lerp(AutumnColor, LushColor, GetTemperature(blockPos));
         }
         if (block == OakLeaves)
-            tint = Vector3.Lerp(autumn, lush, GetTemperature(blockPos));
+            tint = Vector3.Lerp(AutumnColor, LushColor, GetTemperature(blockPos));
         if (WaterRendering.IsWater(block))
-            tint = Vector3.Lerp(autumnWater, lushWater, GetTemperature(blockPos));
+            tint = Vector3.Lerp(AutumnWaterColor, LushWaterColor, GetTemperature(blockPos));
         return tint * shadow;
     }
 }

@@ -5,6 +5,7 @@ using GalensUnified.CubicGrid.Framework.Structures;
 using Silk.NET.Maths;
 
 using static BlockIDs;
+using static GenerationValues;
 using static GalensUnified.CubicGrid.Core.Math.DeterministicRandom;
 
 public class Tree<TChunkDims> : IStructureGeneration
@@ -22,7 +23,7 @@ public class Tree<TChunkDims> : IStructureGeneration
         // This structure is smaller than a chunk so only check immediate neighbors.
         // No chunks above ChunkPosition matter because this structure does not go down.
         int chunkTop = ChunkPosition.Y + TChunkDims.Length;
-        if (chunkTop <= ChunkProcessor<TChunkDims>.MinTerrainHeight)
+        if (chunkTop <= MinTerrainHeight)
             return [];
         List<Vector3D<int>> toReturn = [];
         toReturn.Add(ChunkPosition);
@@ -43,12 +44,12 @@ public class Tree<TChunkDims> : IStructureGeneration
             Vector3D<int> testPosition = localRootPosition + ChunkPosition;
             if (testPosition.Z % PossibleSpawnEveryXBlocks != 0 || testPosition.X % PossibleSpawnEveryXBlocks != 0)
                 continue;
-            int mountainHeight = ChunkProcessor<TChunkDims>.GetMountainHeight(testPosition);
+            int mountainHeight = GetMountainHeight(testPosition);
             if (chunkTop <= mountainHeight || ChunkPosition.Y > mountainHeight)
                 continue;
             testPosition.Y = mountainHeight;
             localRootPosition.Y = mountainHeight - ChunkPosition.Y;
-            if (ChunkProcessor<TChunkDims>.IsErodid(testPosition))
+            if (IsErodid(testPosition))
                 continue;
 
             if (NormalizedRandom(testPosition) < SpawnChance)

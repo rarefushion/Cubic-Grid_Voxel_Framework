@@ -5,6 +5,7 @@ using GalensUnified.CubicGrid.Framework.Structures;
 using Silk.NET.Maths;
 
 using static BlockIDs;
+using static GenerationValues;
 using static GalensUnified.CubicGrid.Core.Math.DeterministicRandom;
 
 public class WaterSourceStructure<TChunkDims> : IStructureGeneration
@@ -35,12 +36,12 @@ public class WaterSourceStructure<TChunkDims> : IStructureGeneration
             Vector3D<int> testPosition = localRootPosition + ChunkPosition;
             if (testPosition.Z % PossibleSpawnEveryXBlocks != 0 || testPosition.X % PossibleSpawnEveryXBlocks != 0)
                 continue;
-            int mountainHeight = ChunkProcessor<TChunkDims>.GetMountainHeight(testPosition);
+            int mountainHeight = GetMountainHeight(testPosition);
             if (chunkTop <= mountainHeight || ChunkPosition.Y > mountainHeight)
                 continue;
             testPosition.Y = mountainHeight;
             localRootPosition.Y = mountainHeight - ChunkPosition.Y;
-            if (ChunkProcessor<TChunkDims>.IsErodid(testPosition))
+            if (IsErodid(testPosition))
                 continue;
 
             if (NormalizedRandom(testPosition) < SpawnChance)

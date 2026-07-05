@@ -7,6 +7,7 @@ using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
 
 using static BlockIDs;
+using static GenerationValues;
 
 public enum ChunkGenerationStage
 {
@@ -27,26 +28,22 @@ public class ChunkProcessor<TChunkDims>
 : IChunkProcessor<Vector3D<int>>
 where TChunkDims : IChunkDims
 {
-    public const int MinTerrainHeight = 0;
+    public static int MaxStructureHeight => Tree<TChunkDims>.GetHeight;
     public static readonly int HeighestPointInChunks =
-        (int)float.Ceiling((Program.mountainHeight + MaxStructureHeight + MinTerrainHeight) / (float)TChunkDims.Length);
+        (int)float.Ceiling((MountainHeight + MaxStructureHeight + MinTerrainHeight) / (float)TChunkDims.Length);
     public static readonly int LowestPointInChunks = HeighestPointInChunks - Program.WorldHeightInChunks;
 
-    public static int MaxStructureHeight => Tree<TChunkDims>.GetHeight;
+    public record RenderChunk(Vector3 Position, ShapeInstance[] Shapes);
+    public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
+    public readonly ConcurrentDictionary<Vector3D<int>, ConcurrentQueue<Action>> NeedsProcessingByChunk = [];
 
-    private readonly ChunkCluster<TChunkDims> cluster = cluster;
-    private readonly Shader shader = shader;
-    private static readonly FastNoiseLite FNL;
     private static readonly IStructureGeneration[] structures =
     [
         new Tree<TChunkDims>(),
         new WaterSourceStructure<TChunkDims>()
     ];
-
-
-    public record RenderChunk(Vector3 Position, ShapeInstance[] Shapes);
-    public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
-    public readonly ConcurrentDictionary<Vector3D<int>, ConcurrentQueue<Action>> NeedsProcessingByChunk = [];
+    private readonly ChunkCluster<TChunkDims> cluster = cluster;
+    private readonly Shader shader = shader;
 
     public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
     {
@@ -65,19 +62,6 @@ where TChunkDims : IChunkDims
         ChunkGenerationStage.CullAndShade => new ChunkTaskType.Async<Vector3D<int>>(RenderTask),
         _ => throw new Exception($"Stage '{stage}' doesn't exist.")
     };
-
-    public static bool IsErodid(Vector3D<int> blockPosition)
-    {
-        float errosion = FNL.GetNoise(blockPosition.X, blockPosition.Y, blockPosition.Z);
-        return errosion > 0.5f;
-    }
-
-    public static int GetMountainHeight(Vector3D<int> blockPosition)
-    {
-        // Doesn't use Y(height) so the value is the same regardless of height.
-        float mountainous = (FNL.GetNoise(blockPosition.X, blockPosition.Z) + 1) / 2;
-        return (int)(mountainous * Program.mountainHeight) + MinTerrainHeight;
-    }
 
     private async Task CalculatePointsAsync(Vector3D<int> chunk, int stage)
     {
@@ -242,12 +226,5 @@ where TChunkDims : IChunkDims
                 shader.DeactivateChunk((Vector3)chunk);
                 cluster.TryRemoveChunk(chunk);
             }
-    }
-
-    static ChunkProcessor()
-    {
-        FNL = new(Program.seed);
-        FNL.SetFrequency(Program.worldScale);
-        ShapeInstancer<TChunkDims>.temperature.SetFrequency(Program.worldScale * 0.2f);
     }
 }

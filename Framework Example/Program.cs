@@ -27,10 +27,7 @@ static class Program
     public const bool lockGenerationHeight = true; // Disable for infinite Downward generation
     public const int WorldHeightInChunks = renderHeight * 2 + 1;
     const int WorldLengthInChunks = renderDistance * 2 + 1;
-    public const int seed = 1337;
-    public const float worldScale = 0.01f;
-    public const int mountainHeight = 50;
-    public static Vector3 camStartPos = new(8, mountainHeight + 8, 8);
+    public static Vector3 camStartPos = new(8, GenerationValues.MountainHeight + 8, 8);
     const float InteractionRange = 10f;
     public const int targetFrameRate = 60;
     public static readonly TimeSpan targetFrameTime = new(0, 0, 0, 0, 1000 / targetFrameRate);
