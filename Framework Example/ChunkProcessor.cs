@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.CubicGrid.Framework.Structures;
 using GalensUnified.CubicGrid.Renderer.NET;
+using GalensUnified.Debugging.ImGui;
 using Silk.NET.Maths;
 
 using static BlockIDs;
@@ -17,15 +19,7 @@ public enum ChunkGenerationStage
     CullAndShade // Create the face instances to render
 }
 
-public class ChunkProcessor<TChunkDims>
-(
-    ChunkCluster<TChunkDims> cluster,
-    Shader shader,
-    Vector3 sunDirection,
-    float sunOccludedShade,
-    float minBrightness
-)
-: IChunkProcessor<Vector3D<int>>
+public class ChunkProcessor<TChunkDims>: IChunkProcessor<Vector3D<int>>
 where TChunkDims : IChunkDims
 {
     public static int MaxStructureHeight => Tree<TChunkDims>.GetHeight;
@@ -37,13 +31,22 @@ where TChunkDims : IChunkDims
     public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
     public readonly ConcurrentDictionary<Vector3D<int>, ConcurrentQueue<Action>> NeedsProcessingByChunk = [];
 
+    private readonly Vector3 sunDirection;
+    private readonly float sunOccludedShade;
+    private readonly float minBrightness;
+
     private static readonly IStructureGeneration[] structures =
     [
         new Tree<TChunkDims>(),
         new WaterSourceStructure<TChunkDims>()
     ];
-    private readonly ChunkCluster<TChunkDims> cluster = cluster;
-    private readonly Shader shader = shader;
+    private static readonly DeltaLogs[] GenerationTimeTables =
+    [
+        new("Block Gen T1K", 1000),
+        new("Instance/Cull T1K", 1000)
+    ];
+    private readonly ChunkCluster<TChunkDims> cluster;
+    private readonly Shader shader;
 
     public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
     {
@@ -79,6 +82,7 @@ where TChunkDims : IChunkDims
 
     public void CalculateChunkPointsAsync(Vector3D<int> chunk)
     {
+        Stopwatch stopwatch = Stopwatch.StartNew();
         // Find Structures
         Dictionary<IStructureGeneration, GeneratedStructureData[]> structureDataByType = [];
         foreach (IStructureGeneration structure in structures)
@@ -119,6 +123,8 @@ where TChunkDims : IChunkDims
                     blocks[i] = structureBlock;
             }
         }
+        stopwatch.Stop();
+        GenerationTimeTables[0].LogDelta(stopwatch.Elapsed.Milliseconds);
     }
 
     public Task EnableInCluster(Vector3D<int> chunk, int stage)
@@ -207,9 +213,12 @@ where TChunkDims : IChunkDims
 
     private void CullAndShadeChunk(Vector3D<int> chunk)
     {
+        Stopwatch stopwatch = Stopwatch.StartNew();
         ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
         cullingHandler = cluster.CullChunk(chunk, cullingHandler);
         NeedRendering.Enqueue(new((Vector3)chunk, [.. cullingHandler.instances]));
+        stopwatch.Stop();
+        GenerationTimeTables[1].LogDelta(stopwatch.Elapsed.Milliseconds);
     }
 
     public void Deactivate(Vector3D<int> chunk)
@@ -226,5 +235,25 @@ where TChunkDims : IChunkDims
                 shader.DeactivateChunk((Vector3)chunk);
                 cluster.TryRemoveChunk(chunk);
             }
+    }
+
+    public ChunkProcessor
+    (
+        ChunkCluster<TChunkDims> cluster,
+        Shader shader,
+        Vector3 sunDirection,
+        float sunOccludedShade,
+        float minBrightness,
+        bool enableDebugger
+    )
+    {
+        this.cluster = cluster;
+        this.shader = shader;
+        this.sunDirection = sunDirection;
+        this.sunOccludedShade = sunOccludedShade;
+        this.minBrightness = minBrightness;
+        if (enableDebugger)
+            foreach (DeltaLogs deltaLogs in GenerationTimeTables)
+                DebugRenderer.AddDeltaTable(deltaLogs, DebugRenderer.defaultTimeTableRows);
     }
 }
