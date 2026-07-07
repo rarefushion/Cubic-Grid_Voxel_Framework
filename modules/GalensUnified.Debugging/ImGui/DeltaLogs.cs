@@ -1,4 +1,6 @@
 namespace GalensUnified.Debugging.ImGui;
+
+using System.Collections.Concurrent;
 using ImGuiNET;
 
 /// <summary>
@@ -45,25 +47,22 @@ public class DeltaLogs
     private int? maxCount;
     private TimeSpan? maxTime;
 
-    private readonly Queue<DeltaLog> logs;
+    private readonly ConcurrentQueue<DeltaLog> logs;
 
     public void LogDelta(double delta)
     {
         if (maxCount != null)
-            while (logs.Count >= maxCount)
-                logs.Dequeue();
+            while (logs.Count >= maxCount && logs.TryDequeue(out _));
 
         logs.Enqueue(new DeltaLog(DateTime.Now, delta));
 
         if (maxTime != null)
-            while (logs.Count > 0 && DateTime.Now - logs.Peek().Recorded > maxTime)
-                logs.Dequeue();
+            while (logs.Count > 0 && logs.TryPeek(out DeltaLog? log) && DateTime.Now - log.Recorded > maxTime && logs.TryDequeue(out _));
     }
 
     public void ClearLogs()
     {
         logs.Clear();
-        logs.TrimExcess(maxCount ?? 0);
     }
 
     /// <summary>Sets the max number of logs and removes excess.</summary>
@@ -72,9 +71,7 @@ public class DeltaLogs
         this.maxCount = maxCount;
         if (maxCount != null)
         {
-            while (logs.Count > maxCount)
-                logs.Dequeue();
-            logs.TrimExcess(maxCount.Value);
+            while (logs.Count > maxCount && logs.TryDequeue(out _));
         }
     }
 
@@ -89,9 +86,7 @@ public class DeltaLogs
 
         if (maxTime != null)
         {
-            while (logs.Count > 0 && DateTime.Now - logs.Peek().Recorded > maxRecordTime)
-                logs.Dequeue();
-            logs.TrimExcess();
+            while (logs.Count > 0 && logs.TryPeek(out DeltaLog? log) && DateTime.Now - log.Recorded > maxTime && logs.TryDequeue(out _));
         }
     }
 
@@ -202,7 +197,7 @@ public class DeltaLogs
         tableName = name;
         maxCount = maxLogs;
         maxTime = null;
-        logs = new(maxLogs);
+        logs = new();
     }
 
     /// <param name="name">The name used for the ImGUI table.</param>
@@ -217,6 +212,6 @@ public class DeltaLogs
         tableName = name;
         maxCount = maxLogs;
         maxTime = maxRecordTime;
-        logs = new(maxLogs);
+        logs = new();
     }
 }
