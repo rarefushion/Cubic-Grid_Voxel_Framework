@@ -134,7 +134,9 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
         int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(pos));
         GetChunkByIndex(chunkIndex).Clear();
         activeChunkPositionByIndex.Remove(chunkIndex);
-        flattenedChunkBlockData.AsSpan(chunkIndex, TChunkDims.Volume).Clear();
+        for (int i = 0; i < TChunkDims.Volume; i++)
+            if (flattenedChunkBlockData.ContainsKey(chunkIndex + i))
+                flattenedChunkBlockData.TryRemove(chunkIndex + i, out _);
         return toReturn;
     }
 
@@ -183,7 +185,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
         this.blockCount = checked(TChunkDims.Volume * chunkCount);
         this.flattenedChunks = new ushort[blockCount];
         this.blockBehaviorByBlock = blockBehaviorByBlock ?? [];
-        this.flattenedChunkBlockData = new IBlockData?[blockCount];
+        this.flattenedChunkBlockData = [];
     }
 
     /// <summary>Represents a collision where different positions produced the same index.</summary>

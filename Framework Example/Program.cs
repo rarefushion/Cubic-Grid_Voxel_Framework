@@ -177,7 +177,7 @@ static class Program
             blockBehaviors[WaterFull + i] = new WaterBlockData<ChunkDimensions>();
         // Chunk Management
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
-        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f, false);
+        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f, true);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         IChunkClusterDirector clusterRegistry = lockGenerationHeight
             ? new ChunkClusterDirectorFlat(generationPipeline, ChunkDimensions.Length, renderDistance, camStartPos.Floor(), 32)

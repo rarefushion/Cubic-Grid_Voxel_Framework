@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Core.Math;
 using Silk.NET.Maths;
@@ -9,7 +10,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// <summary>Marker interface for per-instance block state.</summary>
     /// <remarks>Implementations must be class, not struct. One instance per block that has state.</remarks>
     public interface IBlockData;
-    private readonly IBlockData?[] flattenedChunkBlockData;
+    private readonly ConcurrentDictionary<int, IBlockData> flattenedChunkBlockData;
 
     /// <summary>Generic update payload passed to <see cref="IBlockBehavior.Update{TData}"/>.</summary>
     /// <typeparam name="TPayload">Type of the payload data carried by this update.</typeparam>
@@ -60,7 +61,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
             return false;
         int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(blockPosition));
         int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition);
-        if (flattenedChunkBlockData[chunkIndex + blockIndex] == null)
+        if (!flattenedChunkBlockData.ContainsKey(chunkIndex + blockIndex))
             return false;
         blockData = (TBlockData?)flattenedChunkBlockData[chunkIndex + blockIndex];
         return true;
@@ -90,7 +91,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
         if (!IsActive(chunkPosition))
             return false;
         int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition);
-        flattenedChunkBlockData[chunkIndex + blockIndex] = null;
+        flattenedChunkBlockData.TryRemove(chunkIndex + blockIndex, out _);
         return true;
     }
 
@@ -111,8 +112,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
             return false;
 
         int blockIndex = ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition);
-        IBlockData? blockData = flattenedChunkBlockData[chunkIndex + blockIndex];
-        if (blockData == null)
+        if (!flattenedChunkBlockData.TryGetValue(chunkIndex + blockIndex, out IBlockData? blockData))
             return false;
 
         int block = flattenedChunks[chunkIndex + blockIndex];
