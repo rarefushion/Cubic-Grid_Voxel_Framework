@@ -19,7 +19,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     {
         dir = Vector3.Normalize(dir);
         RaymarchHandler responder = new(this);
-        responder = MarchChunks<RaymarchHandler, ChunkDims>(pos, dir, responder);
+        responder = MarchChunks<RaymarchHandler, TChunkDims>(pos, dir, responder);
         return responder.result;
     }
 
