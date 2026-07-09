@@ -12,28 +12,38 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// <summary>DDA Raycast over the entire cluster until the ray hits a block or leaves <see cref="activeChunks"/>.</summary>
     /// <param name="pos">Starting position of the ray.</param>
     /// <param name="dir">Direction the ray will travel.</param>
+    /// <param name="distance">The distance the ray will travel. Will be over shot by at most 3 units.</param>
     /// <returns>
     /// <see cref="RaycastResult"/> with data filled on hit, if no hit accured returns with air and default data.
     /// </returns>
-    public RaycastResult Raycast(Vector3 pos, Vector3 dir)
+    public RaycastResult Raycast(Vector3 pos, Vector3 dir, float distance)
     {
         dir = Vector3.Normalize(dir);
-        RaymarchHandler responder = new(this);
+        int iterations = 0;
+        if (dir.X != 0)
+            iterations += (int)float.Floor(distance * Math.Abs(dir.X)) + 1;
+        if (dir.Y != 0)
+            iterations += (int)float.Floor(distance * Math.Abs(dir.Y)) + 1;
+        if (dir.Z != 0)
+            iterations += (int)float.Floor(distance * Math.Abs(dir.Z)) + 1;
+        RaymarchHandler responder = new(this, iterations);
         responder = MarchChunks<RaymarchHandler, TChunkDims>(pos, dir, responder);
         return responder.result;
     }
 
-    private struct RaymarchHandler(ChunkCluster<TChunkDims> clsuter) : IChunkMarchHandler
+    private struct RaymarchHandler(ChunkCluster<TChunkDims> clsuter, int maxIterations) : IChunkMarchHandler
     {
-        static readonly RaycastResult defaultResult = new(0, default, default, 0);
+        public static readonly RaycastResult defaultResult = new(0, default, default, 0);
         public RaycastResult result = defaultResult;
         public ushort block;
+        int iterations;
         int chunkIndex;
 
         public bool OnBlockStep(Vector3D<int> blockPosition)
         {
             block = clsuter.flattenedChunks[ChunkMath<TChunkDims>.IndexByGlobalPos(blockPosition) + chunkIndex];
-            return block == 0;
+            iterations++;
+            return block == 0 && iterations < maxIterations;
         }
 
         public bool OnChunkEntered(Vector3D<int> chunkPosition)

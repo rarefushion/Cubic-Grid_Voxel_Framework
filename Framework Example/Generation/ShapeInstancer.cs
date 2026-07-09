@@ -27,6 +27,7 @@ struct ShapeInstancer<TChunkDims>
 ) : IBlockCullingHandler
 where TChunkDims : IChunkDims
 {
+    private const int MaxShadowTraceDistance = 500;
     private const int maxSkyShadeDisWithSun = 25;
     private const float skyOccludedShade = 0.2f;
     private const float abientOcclusionShade = 0.05f;
@@ -78,7 +79,7 @@ where TChunkDims : IChunkDims
         float sunDot = Vector3.Dot(-sunDirection, directionVec);
         if (sunDot > 0f)
         {
-            if (cluster.Raycast(facePosition, -sunDirection).Block != Air)
+            if (cluster.Raycast(facePosition, -sunDirection, MaxShadowTraceDistance).Block != Air)
                 brightness -= sunOccludedShade;
             else
                 brightness -= sunOccludedShade * (1 - sunDot);
@@ -86,7 +87,7 @@ where TChunkDims : IChunkDims
         else
             brightness -= sunOccludedShade;
         // Sky occlusion
-        RaycastResult skyRayResult = cluster.Raycast(facePosition, Vector3.UnitY);
+        RaycastResult skyRayResult = cluster.Raycast(facePosition, Vector3.UnitY, maxSkyShadeDisWithSun);
         if (skyRayResult.Block != Air)
         {
             brightness -= skyOccludedShade * (1 - (MathF.Min(MathF.Floor(skyRayResult.Distance - 0.5f), maxSkyShadeDisWithSun) / maxSkyShadeDisWithSun));
@@ -97,7 +98,7 @@ where TChunkDims : IChunkDims
             Vector3 testVec = testDirection.ToVector();
             if (directionVec == testVec || directionVec == -testVec)
                 continue;
-            RaycastResult testRayResult = cluster.Raycast(facePosition, testVec);
+            RaycastResult testRayResult = cluster.Raycast(facePosition, testVec, 1);
             if (testRayResult.Block != 0 && testRayResult.Distance < 1f)
                 brightness -= abientOcclusionShade;
         }
