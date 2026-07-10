@@ -60,14 +60,14 @@ where TChunkDims : IChunkDims
                 // Create another face for the Grass Side to fill in the bottom with dirt with no tint.
                 float shadow = GetShadow(blockPos, block, facesVisible[i]);
                 BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[GrassSideDirt];
-                instances.AddRange(grassSideDirtRD.Instance(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0));
+                instances.AddRange(grassSideDirtRD.InstanceMixTints(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0));
             }
             tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
         }
         // Rotation
         Direction up = Direction.Top;
         int forward = 0;
-        instances.AddRange(renderData.Instance(localBlockPosition, tintStorage, facesVisible, up, forward));
+        instances.AddRange(renderData.InstanceMixTints(localBlockPosition, tintStorage, facesVisible, up, forward));
     }
 
     private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)

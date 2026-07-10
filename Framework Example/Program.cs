@@ -95,7 +95,7 @@ static class Program
         BlockRenderData.renderDataByBlock =
         [
             // Air
-            new(0, 0, 0, 0, 0, 0, cube),
+            default,
             // Grass
             BRDFactory.CreateWithNames("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side", cube),
             // GrassSideDirt
