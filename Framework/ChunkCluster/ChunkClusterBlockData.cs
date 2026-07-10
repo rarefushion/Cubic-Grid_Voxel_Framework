@@ -55,7 +55,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     public bool TryGetBlockData<TBlockData>(Vector3D<int> blockPosition, out TBlockData? blockData)
     where TBlockData : class, IBlockData
     {
-        Vector3D<int> chunkPosition = blockPosition.FloorTo(TChunkDims.Length);
+        Vector3D<int> chunkPosition = ChunkMath<TChunkDims>.FloorToChunk(blockPosition);
         blockData = null;
         if (!IsActive(chunkPosition))
             return false;
@@ -75,7 +75,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     public bool TrySetBlockData<TBlockData>(Vector3D<int> blockPosition, TBlockData blockData)
     where TBlockData : class, IBlockData
     {
-        Vector3D<int> chunkPosition = blockPosition.FloorTo(TChunkDims.Length);
+        Vector3D<int> chunkPosition = ChunkMath<TChunkDims>.FloorToChunk(blockPosition);
         int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(blockPosition));
         if (!IsActive(chunkPosition))
             return false;
@@ -86,7 +86,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
 
     public bool TryRemoveBlockData(Vector3D<int> blockPosition)
     {
-        Vector3D<int> chunkPosition = blockPosition.FloorTo(TChunkDims.Length);
+        Vector3D<int> chunkPosition = ChunkMath<TChunkDims>.FloorToChunk(blockPosition);
         int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(blockPosition));
         if (!IsActive(chunkPosition))
             return false;
@@ -106,7 +106,7 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
     /// <returns>true if update was recieved; otherwise false.</returns>
     public bool TryUpdateBlockData<TData>(Vector3D<int> blockPosition, BlockUpdate<TData> blockUpdate)
     {
-        Vector3D<int> chunkPosition = blockPosition.FloorTo(TChunkDims.Length);
+        Vector3D<int> chunkPosition = ChunkMath<TChunkDims>.FloorToChunk(blockPosition);
         int chunkIndex = IndexByChunkCoord(ChunkCoordByGlobalPos(blockPosition));
         if (!IsActive(chunkPosition))
             return false;

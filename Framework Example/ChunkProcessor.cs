@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
 using GalensUnified.CubicGrid.Core;
+using GalensUnified.CubicGrid.Core.Math;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.CubicGrid.Framework.Structures;
 using GalensUnified.CubicGrid.Renderer.NET;
@@ -98,9 +99,10 @@ where TChunkDims : IChunkDims
         for (int blockX = 0; blockX < TChunkDims.Length; blockX++)
         for (int blockY = 0; blockY < TChunkDims.Length; blockY++)
         {
-            Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunk;
+            Vector3D<int> localPos = new(blockX, blockY, blockZ);
+            Vector3D<int> blockPos = localPos + chunk;
             int mountainHeight = GetMountainHeight(blockPos);
-            int i = (blockZ * TChunkDims.Length + blockY) * TChunkDims.Length + blockX;
+            int i = ChunkMath<TChunkDims>.IndexByLocalPos(localPos);
             if (blockPos.Y > mountainHeight)
                 blocks[i] = DefaultAtmosphereBlock;
             else if (blockPos.Y == mountainHeight)
@@ -159,7 +161,7 @@ where TChunkDims : IChunkDims
         for (int blockX = 0; blockX < TChunkDims.Length; blockX++)
         for (int blockY = 0; blockY < TChunkDims.Length; blockY++)
         {
-            int i = (blockZ * TChunkDims.Length + blockY) * TChunkDims.Length + blockX;
+            int i = ChunkMath<TChunkDims>.IndexByLocalPos(new(blockX, blockY, blockZ));
             if (WaterRendering.IsWater(blocks[i]))
             {
                 Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunk;

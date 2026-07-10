@@ -161,8 +161,12 @@ public partial class ChunkCluster<TChunkDims> where TChunkDims : IChunkDims
         );
 
     /// <summary>Calculates the chunk coordinate (grid address) by dividing a position by the chunk size.</summary>
-    public Vector3D<int> ChunkCoordByLocalPos(Vector3D<int> pos) =>
-        pos / TChunkDims.Length;
+    public Vector3D<int> ChunkCoordByLocalPos(Vector3D<int> pos) => new
+    (
+        pos.X >> ChunkMath<TChunkDims>.shift,
+        pos.Y >> ChunkMath<TChunkDims>.shift,
+        pos.Z >> ChunkMath<TChunkDims>.shift
+    );
 
     /// <summary>Calculates the 1D index of a chunk coordinate (grid address).</summary>
     public int IndexByChunkCoord(Vector3D<int> coord) =>
