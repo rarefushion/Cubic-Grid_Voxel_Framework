@@ -13,6 +13,7 @@ public class Interactions
     public static RaycastResult AttemptBreak<TDims>(ChunkCluster<TDims> cluster, Vector3 position, Vector3 direction, float range, Action<Vector3D<int>> chunkUpdate)
     where TDims : IChunkDims
     {
+        range = float.Min(range, 999999);
         RaycastResult result = cluster.Raycast(position, direction, range);
         if (result.Block != 0 && result.Distance <= range)
         {
