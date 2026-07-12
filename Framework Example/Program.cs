@@ -177,7 +177,9 @@ static class Program
             blockBehaviors[WaterFull + i] = new WaterBlockData<ChunkDimensions>();
         // Chunk Management
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
-        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f, true);
+        GPUChunkCluster<ChunkDimensions> gpuCluster = new(graphics, WorldLengthInChunks, WorldHeightInChunks);
+        ModelInstancer<ChunkDimensions> modelInstancer = new(graphics, Path.Combine(assets.FullName, "GLSL"), gpuCluster, shader);
+        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, gpuCluster, modelInstancer, shader, sunDirection, 0.6f, 0.05f, true);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         IChunkClusterDirector clusterRegistry = lockGenerationHeight
             ? new ChunkClusterDirectorFlat(generationPipeline, ChunkDimensions.Length, renderDistance, camStartPos.Floor(), 32)
@@ -220,7 +222,6 @@ static class Program
                     {
                         while (processes.TryDequeue(out Action process))
                             process();
-                        processor.Redraw(chunk);
                     });
 
             while (processor.NeedRendering.TryDequeue(out var result))

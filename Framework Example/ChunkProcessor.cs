@@ -47,6 +47,8 @@ where TChunkDims : IChunkDims
         new("Instance/Cull T1K", 1000)
     ];
     private readonly ChunkCluster<TChunkDims> cluster;
+    private readonly GPUChunkCluster<TChunkDims> gpuCluster;
+    private readonly ModelInstancer<TChunkDims> modelInstancer;
     private readonly Shader shader;
 
     public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
@@ -63,7 +65,7 @@ where TChunkDims : IChunkDims
         ChunkGenerationStage.CalculatingPoints => new ChunkTaskType.Async<Vector3D<int>>(CalculatePointsAsync),
         ChunkGenerationStage.EnableInCluster => new ChunkTaskType.Synchronous<Vector3D<int>>(EnableInCluster),
         ChunkGenerationStage.UpdateBehaviors => new ChunkTaskType.Async<Vector3D<int>>(UpdateBlockBehaviorsTask),
-        ChunkGenerationStage.CullAndShade => new ChunkTaskType.Async<Vector3D<int>>(RenderTask),
+        ChunkGenerationStage.CullAndShade => new ChunkTaskType.Synchronous<Vector3D<int>>(RenderTask),
         _ => throw new Exception($"Stage '{stage}' doesn't exist.")
     };
 
@@ -189,7 +191,7 @@ where TChunkDims : IChunkDims
         if (!Program.lockGenerationHeight)
         {
             UpdateBlockBehaviors(chunk);
-            Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(chunk));
+            CullAndShadeChunk(chunk);
         }
         else
             for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
@@ -197,28 +199,27 @@ where TChunkDims : IChunkDims
                 Vector3D<int> subChunk = chunk;
                 subChunk.Y = y * TChunkDims.Length;
                 UpdateBlockBehaviors(subChunk);
-                Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(subChunk));
+                CullAndShadeChunk(subChunk);
             }
     }
 
     public void Redraw(Vector3D<int> chunk) =>
-        Program.backgroundThreadBatch.EnqueueJob(() => CullAndShadeChunk(chunk));
+        CullAndShadeChunk(chunk);
 
-    public void RedrawInstant(Vector3D<int> chunk)
-    {
-        ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
-        cullingHandler = cluster.CullChunk(chunk, cullingHandler);
-        shader.DeactivateChunk((Vector3)chunk);
-        if (cluster.IsActive(chunk) && cullingHandler.instances.Count > 0)
-            shader.RenderChunk((Vector3)chunk, [.. cullingHandler.instances]);
-    }
+    public void RedrawInstant(Vector3D<int> chunk) =>
+        CullAndShadeChunk(chunk);
 
     private void CullAndShadeChunk(Vector3D<int> chunk)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
-        ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
-        cullingHandler = cluster.CullChunk(chunk, cullingHandler);
-        NeedRendering.Enqueue(new((Vector3)chunk, [.. cullingHandler.instances]));
+        // ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
+        // cullingHandler = cluster.CullChunk(chunk, cullingHandler);
+        // NeedRendering.Enqueue(new((Vector3)chunk, [.. cullingHandler.instances]));
+        if (shader.chunkByPos.ContainsKey((Vector3)chunk))
+            shader.DeactivateChunk((Vector3)chunk);
+        Span<ushort> blocks = cluster.GetChunkByPosition(chunk);
+        gpuCluster.UploadChunk(blocks, chunk);
+        modelInstancer.ComputeInstances(chunk);
         stopwatch.Stop();
         GenerationTimeTables[1].LogDelta(stopwatch.Elapsed.Milliseconds);
     }
@@ -229,6 +230,7 @@ where TChunkDims : IChunkDims
         {
             shader.DeactivateChunk((Vector3)chunk);
             cluster.TryRemoveChunk(chunk);
+            gpuCluster.ClearChunk(chunk);
         }
         else
             for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
@@ -236,12 +238,15 @@ where TChunkDims : IChunkDims
                 chunk.Y = y * TChunkDims.Length;
                 shader.DeactivateChunk((Vector3)chunk);
                 cluster.TryRemoveChunk(chunk);
+                gpuCluster.ClearChunk(chunk);
             }
     }
 
     public ChunkProcessor
     (
         ChunkCluster<TChunkDims> cluster,
+        GPUChunkCluster<TChunkDims> gpuCluster,
+        ModelInstancer<TChunkDims> modelInstancer,
         Shader shader,
         Vector3 sunDirection,
         float sunOccludedShade,
@@ -250,6 +255,8 @@ where TChunkDims : IChunkDims
     )
     {
         this.cluster = cluster;
+        this.gpuCluster = gpuCluster;
+        this.modelInstancer = modelInstancer;
         this.shader = shader;
         this.sunDirection = sunDirection;
         this.sunOccludedShade = sunOccludedShade;

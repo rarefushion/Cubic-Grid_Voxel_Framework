@@ -7,6 +7,9 @@
   <Folder Name="/Cubic-Grid_Voxel_Renderer/Cubic-Grid_Voxel_Core/Core/">
     <Project Path="Cubic-Grid_Voxel_Renderer/Cubic-Grid_Voxel_Core/Core/GalensUnified.CubicGrid.Core.csproj" />
   </Folder>
+  <Folder Name="/Cubic-Grid_Voxel_Renderer/GalensGL/">
+    <Project Path="Cubic-Grid_Voxel_Renderer/GalensGL/GalensUnified.Graphics/GalensUnified.Graphics.csproj" />
+  </Folder>
   <Folder Name="/Framework/">
     <Project Path="Framework/GalensUnified.CubicGrid.Framework.csproj" />
   </Folder>
