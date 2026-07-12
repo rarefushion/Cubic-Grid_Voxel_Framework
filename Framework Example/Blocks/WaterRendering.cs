@@ -23,7 +23,7 @@ public static class WaterRendering
         for (int i = 0; i < shapeByWaterLevel.Length; i++)
         {
             float waterLevel = (WaterLevels - i - 1) / (float)WaterLevels;
-            shapeByWaterLevel[i] = new(cubeShapeTopFaceID, cubeShapeBottomFaceID, waterLevel);
+            shapeByWaterLevel[i] = new(cubeShapeBottomFaceID, waterLevel);
             toReturn.AddRange(shapeByWaterLevel[i].Create(waterStartShapeID + toReturn.Count));
         }
         return [.. toReturn];

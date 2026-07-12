@@ -87,15 +87,13 @@ static class Program
         BlockRenderData.Factory BRDFactory = new(textures);
         // Create Blocks
         // Shapes
-        List<Shape> shapes = [];
+        List<Shape> shapes = [ new([]) ];
         Cube cube = new();
         shapes.AddRange(cube.Create(shapes.Count));
         shapes.AddRange(WaterRendering.CreatShapes(cube.shapeIDByFace[(int)Direction.Top], cube.shapeIDByFace[(int)Direction.Bottom], shapes.Count));
         // Faces are named by the Assets/Textures file name.
         BlockRenderData.renderDataByBlock =
         [
-            // Air
-            default,
             // Grass
             BRDFactory.CreateWithNames("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side", cube),
             // GrassSideDirt
@@ -113,6 +111,7 @@ static class Program
             // Water Levels
             .. WaterRendering.shapeByWaterLevel.Select(shape => BRDFactory.CreateWithName("Water", shape))
         ];
+        Model[] models = [ default, .. BlockRenderData.renderDataByBlock.SelectMany(data => data.shape.GetModels(data) )];
         for (ushort i = 0; i < BlockRenderData.renderDataByBlock.Length; i++)
             BlockCulling.transparencyModeByBlock.TryAdd(i, BlockCulling.TransparencyMode.Opaque);
         BlockCulling.transparencyModeByBlock[OakLeaves] = BlockCulling.TransparencyMode.RenderOnTransparent;
@@ -178,7 +177,7 @@ static class Program
         // Chunk Management
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
         GPUChunkCluster<ChunkDimensions> gpuCluster = new(graphics, WorldLengthInChunks, WorldHeightInChunks);
-        ModelInstancer<ChunkDimensions> modelInstancer = new(graphics, Path.Combine(assets.FullName, "GLSL"), gpuCluster, shader);
+        ModelInstancer<ChunkDimensions> modelInstancer = new(graphics, Path.Combine(assets.FullName, "GLSL"), gpuCluster, shader, models);
         ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, gpuCluster, modelInstancer, shader, sunDirection, 0.6f, 0.05f, true);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         IChunkClusterDirector clusterRegistry = lockGenerationHeight

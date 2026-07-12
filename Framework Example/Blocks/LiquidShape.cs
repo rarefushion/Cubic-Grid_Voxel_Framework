@@ -8,9 +8,9 @@ namespace GalensUnified.CubicGrid.Renderer.NET.Shapes;
 /// <param name="cubeShapeBottomFaceID">Reuse the bottom cube face shapeID.</param>
 /// <param name="height">The height the top face will sit. between 0 and 1 or the shape exceeds it's cubic bounds.</param>
 /// <remarks>Currently does not smoothly connect to other heights.</remarks>
-public class LiquidShape(int cubeShapeTopFaceID, int cubeShapeBottomFaceID, float height) : IShape
+public class LiquidShape(int cubeShapeBottomFaceID, float height) : IShape
 {
-    public readonly int[] shapeIDByDirection = [ 0, 0, cubeShapeTopFaceID, cubeShapeBottomFaceID, 0, 0 ];
+    public readonly int[] shapeIDByDirection = [ 0, 0, 0, cubeShapeBottomFaceID, 0, 0 ];
 
     public Shape[] Create(int nextShapeID)
     {
@@ -18,14 +18,16 @@ public class LiquidShape(int cubeShapeTopFaceID, int cubeShapeBottomFaceID, floa
         [
             Cube.CreateFace(Direction.Back),
             Cube.CreateFace(Direction.Front),
+            Cube.CreateFace(Direction.Top),
             Cube.CreateFace(Direction.Left),
             Cube.CreateFace(Direction.Right)
         ];
         shapeIDByDirection[(int)Direction.Back] = nextShapeID;
         shapeIDByDirection[(int)Direction.Front] = nextShapeID + 1;
-        shapeIDByDirection[(int)Direction.Left] = nextShapeID + 2;
-        shapeIDByDirection[(int)Direction.Right] = nextShapeID + 3;
-        for (int i = 0; i < 4; i++)
+        shapeIDByDirection[(int)Direction.Top] = nextShapeID + 2;
+        shapeIDByDirection[(int)Direction.Left] = nextShapeID + 3;
+        shapeIDByDirection[(int)Direction.Right] = nextShapeID + 4;
+        for (int i = 0; i < 5; i++)
             for (int v = 0; v < toReturn[i].Vertices.Length; v++)
                 toReturn[i].Vertices[v].position *= new Vector3(1, height, 1);
         return toReturn;
@@ -68,5 +70,15 @@ public class LiquidShape(int cubeShapeTopFaceID, int cubeShapeBottomFaceID, floa
                 forward
             ));
         return [.. toReturn];
+    }
+
+    public Model[] GetModels(BlockRenderData renderData)
+    {
+        return[new
+        (
+            renderData.faceBack, renderData.faceFront, renderData.faceTop, renderData.faceBottom, renderData.faceLeft, renderData.faceRight,
+            shapeIDByDirection[0], shapeIDByDirection[1], shapeIDByDirection[2], shapeIDByDirection[3], shapeIDByDirection[4], shapeIDByDirection[5],
+            false, false, true, false, false, false
+        )];
     }
 }
