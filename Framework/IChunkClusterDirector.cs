@@ -1,3 +1,4 @@
+using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
 
 namespace GalensUnified.CubicGrid.Framework;
@@ -15,6 +16,8 @@ public interface IChunkClusterDirector
 
     void SetCentrePosition(Vector3D<int> centrePosition);
     void SetLoadDistance(int halfLengthInChunks);
-    /// <summary>Calculates the difference in the chunk boundry and progesses generation pipeline.</summary>
-    void ProcessChunks<THandler>(THandler handler) where THandler : struct, IChunkDirectorUpdateHandler;
+    /// <summary>Calculate chunk removals, additions and progresses generation pipeline.</summary>
+    /// <param name="handler">The handler invoked on chunk updates.</param>
+    /// <param name="frustum">The active view frustum. Defaults to null.</param>
+    void ProcessChunks<THandler>(THandler handler, MatrixPlanes.Plane[]? frustum = null) where THandler : struct, IChunkDirectorUpdateHandler;
 }

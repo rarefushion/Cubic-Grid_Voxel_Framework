@@ -1,4 +1,6 @@
+using System.Numerics;
 using GalensUnified.CubicGrid.Core.Math;
+using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
 
 namespace GalensUnified.CubicGrid.Framework;
@@ -32,7 +34,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
     public IChunkGenerationPipeline<Vector3D<int>> GenerationPipeline { get; }
 
     private readonly Dictionary<Vector3D<int>, bool> chunkCompleteByPos = [];
-    private Queue<Vector3D<int>> toAdd = [];
+    private List<Vector3D<int>> toAdd = [];
+    private HashSet<Vector3D<int>> toAddCompleted = [];
     private HashSet<Vector3D<int>> toRemove = [];
     private readonly SemaphoreSlim semaphore;
 
@@ -95,7 +98,8 @@ public class ChunkClusterDirector : IChunkClusterDirector
         foreach (Vector3D<int> chunk in newChunks)
             if (!toRemove.Remove(chunk)) // if chunk didn't exist
                 if (Added.Add(chunk) && !chunkCompleteByPos.ContainsKey(chunk)) // ExpanddingCubePositions can duplicate positions. Need to refactor it.
-                    toAdd.Enqueue(chunk);
+                    toAdd.Add(chunk);
+        toAddCompleted.Clear();
     }
 
     /// <summary>
@@ -103,7 +107,7 @@ public class ChunkClusterDirector : IChunkClusterDirector
     /// evicts out-of-bounds chunks, then starts newly in-bounds chunks up to the concurrency limit.
     /// Removals are always processed before additions.
     /// </summary>
-    public void ProcessChunks<THandler>(THandler handler) where THandler : struct, IChunkDirectorUpdateHandler
+    public void ProcessChunks<THandler>(THandler handler, MatrixPlanes.Plane[]? frustum = null) where THandler : struct, IChunkDirectorUpdateHandler
     {
         if (!IsProcessing)
             return;
@@ -174,12 +178,23 @@ public class ChunkClusterDirector : IChunkClusterDirector
                 return;
         }
 
-        while (toAdd.Count > 0 && semaphore.Wait(0))
+        if (toAdd.Count == toAddCompleted.Count)
+            return;
+
+        for (int i = 0; i < toAdd.Count; i++)
         {
-            Vector3D<int> chunk = toAdd.Dequeue();
+            Vector3D<int> chunk = toAdd[i];
+            if (toAddCompleted.Contains(chunk))
+                continue;
+            Vector3D<int> chunkMaxBounds = chunk + Vector3D<int>.One * ChunkLength;
+            if (frustum != null && !MatrixPlanes.IsBoxInFrustum(frustum, (Vector3)chunk, (Vector3)chunkMaxBounds))
+                continue;
             if (chunkCompleteByPos.ContainsKey(chunk))
                 throw new InvalidOperationException($"Chunk {chunk} is already being tracked. This should never happen.");
+            if (!semaphore.Wait(0))
+                return;
             chunkCompleteByPos[chunk] = false;
+            toAddCompleted.Add(chunk);
             GenerationPipeline.StartChunk(chunk);
             if (!handler.OnGenerationUpdate(chunk, 0))
                 return;

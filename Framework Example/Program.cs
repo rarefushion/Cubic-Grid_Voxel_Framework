@@ -22,7 +22,7 @@ using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 static class Program
 {
     // Startup Values
-    const int renderDistance = 32;
+    const int renderDistance = 48;
     const int renderHeight = 4;
     public const bool lockGenerationHeight = true; // Disable for infinite Downward generation
     public const int WorldHeightInChunks = renderHeight * 2 + 1;
@@ -233,7 +233,10 @@ static class Program
                     return;
             }
 
-            clusterRegistry.ProcessChunks(registryHandler);
+            Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane);
+            Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0);
+            MatrixPlanes.Plane[] cameraFrustum = MatrixPlanes.ViewFrustum(viewMatrix, projectionMatrix);
+            clusterRegistry.ProcessChunks(registryHandler, cameraFrustum);
         };
         // Debug Info
         ImGuiController guiController = new(graphics, window, input);
