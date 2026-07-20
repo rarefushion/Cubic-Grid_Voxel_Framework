@@ -55,13 +55,17 @@ static class Program
     static void Load(IWindow window)
     {
         // Camera
-        Vector3 camPosition = camStartPos;
-        Vector2 camRotation = Vector2.Zero; // Pitch, Yaw
         float mouseSensitivity = 0.0025f;
-        float camFov = MathF.PI * (120f / 360f);
-        float camAspectRatio = (float)window.Size.X / window.Size.Y;
-        float camNearPlane = 0.1f;
-        float camFarPlane = 2000f;
+        Camera cam = new
+        (
+            camStartPos,
+            Vector3.Zero,
+            MathF.PI * (120f / 360f),
+            (float)window.Size.X / window.Size.Y,
+            0.1f,
+            2000f
+        );
+        window.Resize += size => cam.AspectRatio = (float)size.X / size.Y;
 
         // Inputs
         IInputContext input = window.CreateInput();
@@ -79,8 +83,8 @@ static class Program
                 DebugRenderer.showDebugInfo = !DebugRenderer.showDebugInfo;
         };
         previousMousePosition = input.Mice[0].Position;
-        input.Mice[0].MouseMove += (mouse, pos) => camRotation += GetCameraRotationDelta(mouse, pos, mouseSensitivity);
-        window.Update += delta => camPosition += GetCameraPositionDelta(delta, input, camRotation.Y);
+        input.Mice[0].MouseMove += (mouse, pos) => cam.EurlerAngles += GetCameraRotationDelta(mouse, pos, mouseSensitivity);
+        window.Update += delta => cam.Position += GetCameraPositionDelta(delta, input, cam.EurlerAngles.Y);
 
         // Load assets
         DirectoryInfo assets = Directory.CreateDirectory(Path.Combine(ApplicationEnvironment.ApplicationBasePath, "Assets"));
@@ -142,17 +146,13 @@ static class Program
             Path.Combine(assets.FullName, "GLSL"),
             ChunkDimensions.Length,
             ChunkDimensions.Volume  * ShapeInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
-            camNearPlane,
+            cam.NearPlane,
             [.. textures.Select(t => t.Image)],
             [.. shapes],
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
-        window.Render += dt => shader.Render
-        (
-            CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
-            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
-        );
+        window.Render += dt => shader.Render(cam);
         // Sun
         Vector3 sunColor = new(1f, 0.9f, 1f);
         Vector3 sunDirection = Vector3.Normalize(new // Each axis rotation is scaled -1 to +1 (pos = -direction * distance)
@@ -167,8 +167,8 @@ static class Program
         window.Render += dt => Sun.Draw
         (
             graphics,
-            CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane),
-            CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0)
+            CameraMatrices.CreateProjectionMatrix(cam.Fov, cam.AspectRatio, cam.NearPlane, cam.FarPlane),
+            CameraMatrices.CreateViewMatrix(cam.Position, cam.EurlerAngles.X, cam.EurlerAngles.Y, 0)
         );
         // Block Behaviors
         int behaviorCount = WaterFull + WaterLevels + 1;
@@ -203,15 +203,15 @@ static class Program
                 Interactions.AttemptBreak
                 (
                     chunkCluster,
-                    camPosition,
-                    Vector3.Transform(-Vector3.UnitZ, Quaternion.CreateFromYawPitchRoll(camRotation.Y, camRotation.X, 0)),
+                    cam.Position,
+                    Vector3.Transform(-Vector3.UnitZ, Quaternion.CreateFromYawPitchRoll(cam.EurlerAngles.Y, cam.EurlerAngles.X, 0)),
                     ctrl ? float.MaxValue : InteractionRange,
                     chunkUpdate
                 );
             }
             LMBHeld = LMB;
 
-            clusterRegistry.SetCentrePosition(camPosition.Floor());
+            clusterRegistry.SetCentrePosition(cam.Position.Floor());
             if (OverTargtetFrameTime())
                 return;
 
@@ -235,8 +235,8 @@ static class Program
                     return;
             }
 
-            Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(camFov, camAspectRatio, camNearPlane, camFarPlane);
-            Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(camPosition, camRotation.X, camRotation.Y, 0);
+            Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(cam.Fov, cam.AspectRatio, cam.NearPlane, cam.FarPlane);
+            Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(cam.Position, cam.EurlerAngles.X, cam.EurlerAngles.Y, 0);
             MatrixPlanes.Plane[] cameraFrustum = MatrixPlanes.ViewFrustum(viewMatrix, projectionMatrix);
             clusterRegistry.ProcessChunks(registryHandler, cameraFrustum);
         };
@@ -255,12 +255,12 @@ static class Program
 
     public static bool OverTargtetFrameTime() => DateTime.Now - frameStart > targetFrameTime;
 
-    /// <summary>Calculates the camera rotation every frame.</summary>
-    /// <returns>Distance to rotate the camera.</returns>
-    static Vector2 GetCameraRotationDelta(IMouse mouse, Vector2 pos, float sensitivity)
+    /// <summary>Calculates the camera rotation delta every frame.</summary>
+    /// <returns>Amount to rotate the camera.</returns>
+    static Vector3 GetCameraRotationDelta(IMouse mouse, Vector2 pos, float sensitivity)
     {
         if (mouse.Cursor.CursorMode != CursorMode.Raw)
-            return Vector2.Zero;
+            return Vector3.Zero;
 
         Vector2 delta = pos - previousMousePosition;
         previousMousePosition = pos;
@@ -271,7 +271,7 @@ static class Program
         // clamp pitch to avoid flipping
         float limit = MathF.PI / 2f - 0.01f;
         Pitch = Math.Clamp(Pitch, -limit, limit);
-        return new(-Pitch, -Yaw);
+        return new(-Pitch, -Yaw, 0);
     }
 
     /// <summary>Calculates the distance the camera needs to move every frame.</summary>
