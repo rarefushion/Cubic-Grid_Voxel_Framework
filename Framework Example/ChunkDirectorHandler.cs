@@ -1,5 +1,6 @@
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
+using GalensUnified.CubicGrid.Framework.ChunkOrchestration;
 using Silk.NET.Maths;
 
 public struct ChunkDirectorHandler<TChunkDims>

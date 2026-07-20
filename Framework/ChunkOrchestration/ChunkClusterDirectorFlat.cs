@@ -3,7 +3,7 @@ using GalensUnified.CubicGrid.Core.Math;
 using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
 
-namespace GalensUnified.CubicGrid.Framework;
+namespace GalensUnified.CubicGrid.Framework.ChunkOrchestration;
 
 using ChunkGenState = ChunkGenerationState<Vector3D<int>>;
 

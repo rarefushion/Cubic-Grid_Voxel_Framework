@@ -1,6 +1,6 @@
 using Silk.NET.Maths;
 
-namespace GalensUnified.CubicGrid.Framework;
+namespace GalensUnified.CubicGrid.Framework.ChunkOrchestration;
 
 public interface IChunkDirectorUpdateHandler
 {

@@ -1,7 +1,7 @@
 using GalensUnified.CubicGrid.Renderer.NET;
 using Silk.NET.Maths;
 
-namespace GalensUnified.CubicGrid.Framework;
+namespace GalensUnified.CubicGrid.Framework.ChunkOrchestration;
 
 /// <summary>Tracks which chunks are active and unloads chunks that are out of bounds.</summary>
 public interface IChunkClusterDirector
