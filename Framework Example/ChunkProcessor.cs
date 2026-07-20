@@ -4,6 +4,7 @@ using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Core.Math;
 using GalensUnified.CubicGrid.Framework;
+using GalensUnified.CubicGrid.Framework.ChunkGeneration;
 using GalensUnified.CubicGrid.Framework.Structures;
 using GalensUnified.CubicGrid.Renderer.NET;
 using GalensUnified.Debugging.ImGui;

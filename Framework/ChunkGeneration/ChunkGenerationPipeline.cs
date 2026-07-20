@@ -1,6 +1,6 @@
 using GalensUnified.CubicGrid.Core;
 
-namespace GalensUnified.CubicGrid.Framework;
+namespace GalensUnified.CubicGrid.Framework.ChunkGeneration;
 
 using HaltGen = ChunkTaskGate.Halt;
 

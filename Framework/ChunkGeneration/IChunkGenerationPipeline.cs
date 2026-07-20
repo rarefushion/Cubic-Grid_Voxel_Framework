@@ -1,4 +1,4 @@
-namespace GalensUnified.CubicGrid.Framework;
+namespace GalensUnified.CubicGrid.Framework.ChunkGeneration;
 
 
 /// <summary>Information about a chunk that is generating.</summary>

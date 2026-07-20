@@ -1,4 +1,4 @@
-namespace GalensUnified.CubicGrid.Framework;
+namespace GalensUnified.CubicGrid.Framework.ChunkGeneration;
 
 /// <summary>A chunk's task that can be ran and tracked.</summary>
 public delegate Task ChunkTask<TChunkKey>(TChunkKey chunk, int stage);
