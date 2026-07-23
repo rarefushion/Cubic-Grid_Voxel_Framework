@@ -160,7 +160,7 @@ public class DeltaLogs
 
 
     /// <summary>Gets the average from the longest logged deltas.</summary>
-    public double GetAverageOfCount(int count) => logs.Any() ? logs
+    public double GetAverageOfCount(int count) => logs.Any() && count > 0 ? logs
         .OrderByDescending(x => x.Delta)
         .Take(count)
         .OrderBy(x => x.Recorded)
