@@ -31,9 +31,9 @@ public class LiquidShape(int cubeShapeTopFaceID, int cubeShapeBottomFaceID, floa
         return toReturn;
     }
 
-    public ShapeInstance[] Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible, Direction up, int forward)
+    public BlockRenderInstance Instance(Vector3 position, BlockRenderData renderData, List<Vector3> faceTints, List<Direction> facesVisible, Direction up, int forward)
     {
-        List<ShapeInstance> toReturn = [];
+        List<ShapeInstanceAndTint> toReturn = [];
         bool drawTop = false;
         Vector3? topTint = null; // If isn't set in faceTints assume a side faces tint, if those don't exist assume full bright.
         for (int i = 0; i < facesVisible.Count; i++)
@@ -42,15 +42,15 @@ public class LiquidShape(int cubeShapeTopFaceID, int cubeShapeBottomFaceID, floa
                 drawTop = true;
             if (facesVisible[i] != Direction.Top)
             {
-                toReturn.Add(new
+                ShapeInstance shapeInstance = new
                 (
                     position,
                     renderData.GetTextureID(facesVisible[i]),
-                    faceTints[i],
                     shapeIDByDirection[(int)facesVisible[i]],
                     up,
                     forward
-                ));
+                );
+                toReturn.Add(new(shapeInstance, faceTints[i]));
                 if (topTint == null)
                     topTint = faceTints[i];
             }
@@ -58,15 +58,17 @@ public class LiquidShape(int cubeShapeTopFaceID, int cubeShapeBottomFaceID, floa
                 topTint = faceTints[i];
         }
         if (drawTop)
-            toReturn.Add(new
+        {
+            ShapeInstance shapeInstance = new
             (
                 position - Vector3.UnitY * (1 - height),
                 renderData.GetTextureID(Direction.Top),
-                topTint?? Vector3.One,
                 shapeIDByDirection[(int)Direction.Top],
                 up,
                 forward
-            ));
-        return [.. toReturn];
+            );
+            toReturn.Add(new(shapeInstance, topTint?? Vector3.One));
+        }
+        return new([.. toReturn], []);
     }
 }

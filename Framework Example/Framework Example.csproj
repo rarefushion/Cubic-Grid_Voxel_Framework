@@ -1,11 +1,54 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Target Name="CompileShaders" BeforeTargets="Build">
+    <Exec
+      Condition="$([MSBuild]::IsOSPlatform('Linux')) Or $([MSBuild]::IsOSPlatform('OSX'))"
+      WorkingDirectory="../Cubic-Grid_Voxel_Renderer"
+      Command="../Cubic-Grid_Voxel_Renderer/HLSLtoGLSL.sh"
+      IgnoreExitCode="true"
+      IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ExitCode" PropertyName="ShaderExitCode" />
+    </Exec>
+    <Exec
+      Condition="$([MSBuild]::IsOSPlatform('Windows'))"
+      WorkingDirectory="../Cubic-Grid_Voxel_Renderer"
+      Command="bash ../Cubic-Grid_Voxel_Renderer/HLSLtoGLSL.sh"
+      IgnoreExitCode="true"
+      IgnoreStandardErrorWarningFormat="true">
+      <Output TaskParameter="ExitCode" PropertyName="ShaderExitCode" />
+    </Exec>
+
+    <Warning
+      Condition="'$(ShaderExitCode)' == '3' Or '$(ShaderExitCode)' == '127' Or '$(ShaderExitCode)' == '9009'"
+      Text="Shader regeneration skipped: dxc, spirv-cross or bash not found. Using the pregenerated GLSL in Assets/. Install them only if you edit HLSL." />
+
+    <Error
+      Condition="'$(ShaderExitCode)' != '0' And '$(ShaderExitCode)' != '3' And '$(ShaderExitCode)' != '127' And '$(ShaderExitCode)' != '9009'"
+      Text="HLSL to GLSL translation failed (exit code $(ShaderExitCode))." />
+
+    <ItemGroup Condition="'$(ShaderExitCode)' == '0'">
+      <CompiledGlsl Include="../Cubic-Grid_Voxel_Renderer/GLSL SpriV Translation/*.glsl" />
+    </ItemGroup>
+
+    <Copy
+      Condition="'$(ShaderExitCode)' == '0'"
+      SourceFiles="@(CompiledGlsl)"
+      DestinationFolder="./Assets/GLSL SpriV Translation/"
+      SkipUnchangedFiles="true" />
+
+    <RemoveDir Directories="../Cubic-Grid_Voxel_Renderer/GLSL SpriV Translation" />
+  </Target>
+
+  <Target Name="CopyAssets" AfterTargets="Build">
   <ItemGroup>
-    <Content Include="../Cubic-Grid_Voxel_Renderer/GLSL/**" CopyToOutputDirectory="PreserveNewest">
-      <TargetPath>Assets\GLSL\%(Filename)%(Extension)</TargetPath>
-    </Content>
-    <Content Include="Assets\**" CopyToOutputDirectory="PreserveNewest" />
+    <Assets Include=".\Assets\**\*.*" />
   </ItemGroup>
+
+    <Copy
+      SourceFiles="@(Assets)"
+      DestinationFolder="$(OutDir)\Assets\%(RecursiveDir)"
+      SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\Framework\GalensUnified.CubicGrid.Framework.csproj" />

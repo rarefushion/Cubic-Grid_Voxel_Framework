@@ -14,7 +14,7 @@ using Silk.NET.Windowing;
 // ChunkDims can be switched out for other sized chunks.
 // Core.ChunkDims are chunks of length 16 (there for volume of 4096).
 // Others exist for 8(Core.HalfChunkDims), 32(Core.DoubleChunkDims), 64 and 128.
-using ChunkDimensions = GalensUnified.CubicGrid.Core.ChunkDims;
+using ChunkDimensions = GalensUnified.CubicGrid.Core.DoubleChunkDims;
 
 using static BlockIDs;
 using GalensUnified.CubicGrid.Framework.Player;
@@ -24,8 +24,8 @@ using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 static class Program
 {
     // Startup Values
-    const int renderDistance = 48;
-    const int renderHeight = 4;
+    const int renderDistance = 24;
+    const int renderHeight = 2;
     public const bool lockGenerationHeight = true; // Disable for infinite Downward generation
     public const int WorldHeightInChunks = renderHeight * 2 + 1;
     const int WorldLengthInChunks = renderDistance * 2 + 1;
@@ -94,6 +94,8 @@ static class Program
         // Create Blocks
         // Shapes
         List<Shape> shapes = [];
+        GridAlignedQuads gridAlignedCube = new();
+        shapes.AddRange(gridAlignedCube.Create(shapes.Count));
         Cube cube = new();
         shapes.AddRange(cube.Create(shapes.Count));
         shapes.AddRange(WaterRendering.CreatShapes(cube.shapeIDByFace[(int)Direction.Top], cube.shapeIDByFace[(int)Direction.Bottom], shapes.Count));
@@ -103,19 +105,19 @@ static class Program
             // Air
             default,
             // Grass
-            BRDFactory.CreateWithNames("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side", cube),
+            BRDFactory.CreateWithNames("Grass_Side", "Grass_Side", "Grass", "Dirt", "Grass_Side", "Grass_Side", gridAlignedCube),
             // GrassSideDirt
-            BRDFactory.CreateWithNames("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt", cube),
+            BRDFactory.CreateWithNames("Grass_Side_Dirt", "Grass_Side_Dirt", "Dirt", "Dirt", "Grass_Side_Dirt", "Grass_Side_Dirt", gridAlignedCube),
             // Dirt
-            BRDFactory.CreateWithName("Dirt", cube),
+            BRDFactory.CreateWithName("Dirt", gridAlignedCube),
             // Stone
-            BRDFactory.CreateWithName("Stone", cube),
+            BRDFactory.CreateWithName("Stone", gridAlignedCube),
             // OakLog
-            BRDFactory.CreateWithName("oak_log", cube),
+            BRDFactory.CreateWithNames("oak_log", "oak_log", "oak_log_top", "oak_log_top", "oak_log", "oak_log", gridAlignedCube),
             // OakLeaves
-            BRDFactory.CreateWithName("oak_leaves", cube),
+            BRDFactory.CreateWithName("oak_leaves", gridAlignedCube),
             // WaterFull
-            BRDFactory.CreateWithName("Water", cube),
+            BRDFactory.CreateWithName("Water", gridAlignedCube),
             // Water Levels
             .. WaterRendering.shapeByWaterLevel.Select(shape => BRDFactory.CreateWithName("Water", shape))
         ];
@@ -139,20 +141,33 @@ static class Program
         graphics.ClearColor(System.Drawing.Color.CornflowerBlue);
         window.Resize += size => graphics.Viewport(0, 0, (uint)size.X, (uint)size.Y);
         window.Update += delta => graphics.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
-        // Ambiguous between mine and Silk.NET.OpenGL.Shader :sob:
-        GalensUnified.CubicGrid.Renderer.NET.Shader shader = new
+        // Create genaric shapes shader
+        ShapeShader shapeShader = new
         (
             graphics,
-            Path.Combine(assets.FullName, "GLSL"),
+            Path.Combine(assets.FullName, "GLSL SpriV Translation"),
             ChunkDimensions.Length,
-            ChunkDimensions.Volume  * ShapeInstance.MemorySize * 32, // chunkVolume * sizeof(BlockInstance) * vram batch size in chunks
+            ChunkDimensions.Volume * ShapeInstance.MemorySize * 32, // chunkVolume * sizeof(ShapeInstance) * vram batch size in chunks
             cam.NearPlane,
             [.. textures.Select(t => t.Image)],
             [.. shapes],
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
-        window.Render += dt => shader.Render(cam);
+        window.Render += dt => shapeShader.Render(cam);
+        // Create Grid aligned cubes shader
+        GridAlignedQuadShader quadShader = new
+        (
+            graphics,
+            Path.Combine(assets.FullName, "GLSL SpriV Translation"),
+            ChunkDimensions.Length,
+            ChunkDimensions.Volume * 6 * GridAlignedQuadInstance.MemorySize * 32, // chunkVolume * 6 faces * sizeof(GridAlignedQuadInstance) * vram batch size in chunks
+            cam.NearPlane,
+            [.. textures.Select(t => t.Image)],
+            messageErr => Console.WriteLine(messageErr),
+            messageLog => Console.WriteLine(messageLog)
+        );
+        window.Render += dt => quadShader.Render(cam);
         // Sun
         Vector3 sunColor = new(1f, 0.9f, 1f);
         Vector3 sunDirection = Vector3.Normalize(new // Each axis rotation is scaled -1 to +1 (pos = -direction * distance)
@@ -179,7 +194,7 @@ static class Program
             blockBehaviors[WaterFull + i] = new WaterBlockData<ChunkDimensions>();
         // Chunk Management
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
-        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shader, sunDirection, 0.6f, 0.05f, true);
+        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shapeShader, quadShader, sunDirection, 0.6f, 0.05f, true);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         IChunkClusterDirector clusterRegistry = lockGenerationHeight
             ? new ChunkClusterDirectorFlat(generationPipeline, ChunkDimensions.Length, renderDistance, camStartPos.Floor(), 32)
@@ -227,10 +242,15 @@ static class Program
 
             while (processor.NeedRendering.TryDequeue(out var result))
             {
-                if (shader.chunkByPos.ContainsKey(result.Position))
-                    shader.DeactivateChunk(result.Position);
-                if (chunkCluster.IsActive(result.Position.Floor()) && result.Shapes.Length > 0)
-                    shader.RenderChunk(result.Position, result.Shapes);
+                shapeShader.DeactivateChunk(result.Position);
+                quadShader.DeactivateChunk(result.Position);
+                if (chunkCluster.IsActive(result.Position.Floor()))
+                {
+                    if (result.ShapeInstances.Length > 0)
+                        shapeShader.RenderChunk(result.Position, result.ShapeInstances, result.ShapeTints);
+                    if (result.QuadInstances.Length > 0)
+                        quadShader.RenderChunk(result.Position, result.QuadInstances, result.QuadTints);
+                }
                 if (OverTargtetFrameTime())
                     return;
             }

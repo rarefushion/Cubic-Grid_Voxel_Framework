@@ -32,8 +32,10 @@ where TChunkDims : IChunkDims
     private const float skyOccludedShade = 0.2f;
     private const float abientOcclusionShade = 0.05f;
 
-    public readonly List<ShapeInstance> instances = [];
+    public readonly List<ShapeInstanceAndTint> shapeInstances = [];
+    public GridAlignedQuadInstanceAndTints[] quadInstances = [];
     private readonly List<Vector3> tintStorage = []; // We don't want to allocate this for every shape
+    private readonly GreedyQuadInstancer greedyQuadInstancer = new();
 
     /// <summary>Gets the center of a face of a cube using the standardized order: -z, +z, +y, -y, -x then +x.</summary>
     public static readonly Vector3[] FaceCenters =
@@ -60,14 +62,19 @@ where TChunkDims : IChunkDims
                 // Create another face for the Grass Side to fill in the bottom with dirt with no tint.
                 float shadow = GetShadow(blockPos, block, facesVisible[i]);
                 BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[GrassSideDirt];
-                instances.AddRange(grassSideDirtRD.InstanceMixTints(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0));
+                BlockRenderInstance grassSideDirtInstance = grassSideDirtRD
+                    .InstanceMixTints(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0);
+                greedyQuadInstancer.AddRange(grassSideDirtInstance.quadInstancesAndTints);
             }
             tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
         }
         // Rotation
         Direction up = Direction.Top;
         int forward = 0;
-        instances.AddRange(renderData.InstanceMixTints(localBlockPosition, tintStorage, facesVisible, up, forward));
+
+        BlockRenderInstance blockInstance = renderData.InstanceMixTints(localBlockPosition, tintStorage, facesVisible, up, forward);
+        shapeInstances.AddRange(blockInstance.shapeInstancesAndTints);
+        greedyQuadInstancer.AddRange(blockInstance.quadInstancesAndTints);
     }
 
     private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)
@@ -123,4 +130,6 @@ where TChunkDims : IChunkDims
             tint = Vector3.Lerp(AutumnWaterColor, LushWaterColor, GetTemperature(blockPos));
         return tint * shadow;
     }
+
+    public void CullFinalize() => quadInstances = greedyQuadInstancer.Merge();
 }

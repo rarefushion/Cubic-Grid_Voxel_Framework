@@ -29,7 +29,7 @@ where TChunkDims : IChunkDims
         (int)float.Ceiling((MountainHeight + MaxStructureHeight + MinTerrainHeight) / (float)TChunkDims.Length);
     public static readonly int LowestPointInChunks = HeighestPointInChunks - Program.WorldHeightInChunks;
 
-    public record RenderChunk(Vector3 Position, ShapeInstance[] Shapes);
+    public record RenderChunk(Vector3 Position, ShapeInstance[] ShapeInstances, Vector3[] ShapeTints, GridAlignedQuadInstance[] QuadInstances, Vector3[] QuadTints);
     public readonly ConcurrentQueue<RenderChunk> NeedRendering = [];
     public readonly ConcurrentDictionary<Vector3D<int>, ConcurrentQueue<Action>> NeedsProcessingByChunk = [];
 
@@ -48,7 +48,8 @@ where TChunkDims : IChunkDims
         new("Instance/Cull T1K", 1000)
     ];
     private readonly ChunkCluster<TChunkDims> cluster;
-    private readonly Shader shader;
+    private readonly ShapeShader shapeShader;
+    private readonly GridAlignedQuadShader quadShader;
 
     public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
     {
@@ -209,9 +210,25 @@ where TChunkDims : IChunkDims
     {
         ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
         cullingHandler = cluster.CullChunk(chunk, cullingHandler);
-        shader.DeactivateChunk((Vector3)chunk);
-        if (cluster.IsActive(chunk) && cullingHandler.instances.Count > 0)
-            shader.RenderChunk((Vector3)chunk, [.. cullingHandler.instances]);
+        shapeShader.DeactivateChunk((Vector3)chunk);
+        quadShader.DeactivateChunk((Vector3)chunk);
+        if (cluster.IsActive(chunk))
+        {
+            if (cullingHandler.shapeInstances.Count > 0)
+                shapeShader.RenderChunk
+                (
+                    (Vector3)chunk,
+                    [.. cullingHandler.shapeInstances.Select(i => i.ShapeInstance)],
+                    [.. cullingHandler.shapeInstances.Select(i => i.Tint)]
+                );
+            if (cullingHandler.quadInstances.Length > 0)
+                quadShader.RenderChunk
+                (
+                    (Vector3)chunk,
+                    [.. cullingHandler.quadInstances.Select(i => i.QuadInstance)],
+                    [.. cullingHandler.quadInstances.SelectMany(i => i.Tints)]
+                );
+        }
     }
 
     private void CullAndShadeChunk(Vector3D<int> chunk)
@@ -219,7 +236,15 @@ where TChunkDims : IChunkDims
         Stopwatch stopwatch = Stopwatch.StartNew();
         ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
         cullingHandler = cluster.CullChunk(chunk, cullingHandler);
-        NeedRendering.Enqueue(new((Vector3)chunk, [.. cullingHandler.instances]));
+        RenderChunk renderChunk = new
+        (
+            (Vector3)chunk,
+            [.. cullingHandler.shapeInstances.Select(i => i.ShapeInstance)],
+            [.. cullingHandler.shapeInstances.Select(i => i.Tint)],
+            [.. cullingHandler.quadInstances.Select(i => i.QuadInstance)],
+            [.. cullingHandler.quadInstances.SelectMany(i => i.Tints)]
+        );
+        NeedRendering.Enqueue(renderChunk);
         stopwatch.Stop();
         GenerationTimeTables[1].LogDelta(stopwatch.Elapsed.Milliseconds);
     }
@@ -228,14 +253,16 @@ where TChunkDims : IChunkDims
     {
         if (!Program.lockGenerationHeight)
         {
-            shader.DeactivateChunk((Vector3)chunk);
+            shapeShader.DeactivateChunk((Vector3)chunk);
+            quadShader.DeactivateChunk((Vector3)chunk);
             cluster.TryRemoveChunk(chunk);
         }
         else
             for (int y = LowestPointInChunks; y < HeighestPointInChunks; y++)
             {
                 chunk.Y = y * TChunkDims.Length;
-                shader.DeactivateChunk((Vector3)chunk);
+                shapeShader.DeactivateChunk((Vector3)chunk);
+                quadShader.DeactivateChunk((Vector3)chunk);
                 cluster.TryRemoveChunk(chunk);
             }
     }
@@ -243,7 +270,8 @@ where TChunkDims : IChunkDims
     public ChunkProcessor
     (
         ChunkCluster<TChunkDims> cluster,
-        Shader shader,
+        ShapeShader shapeShader,
+        GridAlignedQuadShader quadShader,
         Vector3 sunDirection,
         float sunOccludedShade,
         float minBrightness,
@@ -251,7 +279,8 @@ where TChunkDims : IChunkDims
     )
     {
         this.cluster = cluster;
-        this.shader = shader;
+        this.shapeShader = shapeShader;
+        this.quadShader = quadShader;
         this.sunDirection = sunDirection;
         this.sunOccludedShade = sunOccludedShade;
         this.minBrightness = minBrightness;
