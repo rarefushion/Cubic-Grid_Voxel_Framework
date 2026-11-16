@@ -24,6 +24,8 @@ using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 static class Program
 {
     // Startup Values
+    const float mouseSensitivity = 0.0025f;
+    const int FOV = 90; // 30 - 140 recommended, < 1 or > 179 will crash
     const int renderDistance = 24;
     const int renderHeight = 2;
     public const bool lockGenerationHeight = true; // Disable for infinite Downward generation
@@ -38,6 +40,8 @@ static class Program
     public static float moveSpeed = 2f;
     public static Vector2 previousMousePosition;
     public static DateTime frameStart = DateTime.Now;
+
+    public static Camera playerCam = new(camStartPos, Vector3.Zero, FOV * MathF.PI / 180f, 16/9, 0.1f, 2000f);
     // Use this over Task.Run instead use ThreadBatch.EnqueueJob for better performance.
     public static readonly ThreadBatch backgroundThreadBatch = new(Environment.ProcessorCount - 1, ThreadPriority.Normal);
 
@@ -54,18 +58,8 @@ static class Program
 
     static void Load(IWindow window)
     {
-        // Camera
-        float mouseSensitivity = 0.0025f;
-        Camera cam = new
-        (
-            camStartPos,
-            Vector3.Zero,
-            MathF.PI * (120f / 360f),
-            (float)window.Size.X / window.Size.Y,
-            0.1f,
-            2000f
-        );
-        window.Resize += size => cam.AspectRatio = (float)size.X / size.Y;
+        playerCam.AspectRatio = (float)window.Size.X / window.Size.Y;
+        window.Resize += size => playerCam.AspectRatio = (float)size.X / size.Y;
 
         // Inputs
         IInputContext input = window.CreateInput();
@@ -83,8 +77,8 @@ static class Program
                 DebugRenderer.showDebugInfo = !DebugRenderer.showDebugInfo;
         };
         previousMousePosition = input.Mice[0].Position;
-        input.Mice[0].MouseMove += (mouse, pos) => cam.EurlerAngles += GetCameraRotationDelta(mouse, pos, mouseSensitivity);
-        window.Update += delta => cam.Position += GetCameraPositionDelta(delta, input, cam.EurlerAngles.Y);
+        input.Mice[0].MouseMove += (mouse, pos) => playerCam.EurlerAngles += GetCameraRotationDelta(mouse, pos, mouseSensitivity);
+        window.Update += delta => playerCam.Position += GetCameraPositionDelta(delta, input, playerCam.EurlerAngles.Y);
 
         // Load assets
         DirectoryInfo assets = Directory.CreateDirectory(Path.Combine(ApplicationEnvironment.ApplicationBasePath, "Assets"));
@@ -148,13 +142,13 @@ static class Program
             Path.Combine(assets.FullName, "GLSL SpriV Translation"),
             ChunkDimensions.Length,
             ChunkDimensions.Volume * ShapeInstance.MemorySize * 32, // chunkVolume * sizeof(ShapeInstance) * vram batch size in chunks
-            cam.NearPlane,
+            playerCam.NearPlane,
             [.. textures.Select(t => t.Image)],
             [.. shapes],
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
-        window.Render += dt => shapeShader.Render(cam);
+        window.Render += dt => shapeShader.Render(playerCam);
         // Create Grid aligned cubes shader
         GridAlignedQuadShader quadShader = new
         (
@@ -162,12 +156,12 @@ static class Program
             Path.Combine(assets.FullName, "GLSL SpriV Translation"),
             ChunkDimensions.Length,
             ChunkDimensions.Volume * 6 * GridAlignedQuadInstance.MemorySize * 32, // chunkVolume * 6 faces * sizeof(GridAlignedQuadInstance) * vram batch size in chunks
-            cam.NearPlane,
+            playerCam.NearPlane,
             [.. textures.Select(t => t.Image)],
             messageErr => Console.WriteLine(messageErr),
             messageLog => Console.WriteLine(messageLog)
         );
-        window.Render += dt => quadShader.Render(cam);
+        window.Render += dt => quadShader.Render(playerCam);
         // Sun
         Vector3 sunColor = new(1f, 0.9f, 1f);
         Vector3 sunDirection = Vector3.Normalize(new // Each axis rotation is scaled -1 to +1 (pos = -direction * distance)
@@ -182,8 +176,8 @@ static class Program
         window.Render += dt => Sun.Draw
         (
             graphics,
-            CameraMatrices.CreateProjectionMatrix(cam.Fov, cam.AspectRatio, cam.NearPlane, cam.FarPlane),
-            CameraMatrices.CreateViewMatrix(cam.Position, cam.EurlerAngles.X, cam.EurlerAngles.Y, 0)
+            CameraMatrices.CreateProjectionMatrix(playerCam.Fov, playerCam.AspectRatio, playerCam.NearPlane, playerCam.FarPlane),
+            CameraMatrices.CreateViewMatrix(playerCam.Position, playerCam.EurlerAngles.X, playerCam.EurlerAngles.Y, 0)
         );
         // Block Behaviors
         int behaviorCount = WaterFull + WaterLevels + 1;
@@ -218,15 +212,15 @@ static class Program
                 Interactions.AttemptBreak
                 (
                     chunkCluster,
-                    cam.Position,
-                    Vector3.Transform(-Vector3.UnitZ, Quaternion.CreateFromYawPitchRoll(cam.EurlerAngles.Y, cam.EurlerAngles.X, 0)),
+                    playerCam.Position,
+                    Vector3.Transform(-Vector3.UnitZ, Quaternion.CreateFromYawPitchRoll(playerCam.EurlerAngles.Y, playerCam.EurlerAngles.X, 0)),
                     ctrl ? float.MaxValue : InteractionRange,
                     chunkUpdate
                 );
             }
             LMBHeld = LMB;
 
-            clusterRegistry.SetCentrePosition(cam.Position.Floor());
+            clusterRegistry.SetCentrePosition(playerCam.Position.Floor());
             if (OverTargtetFrameTime())
                 return;
 
@@ -255,8 +249,8 @@ static class Program
                     return;
             }
 
-            Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(cam.Fov, cam.AspectRatio, cam.NearPlane, cam.FarPlane);
-            Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(cam.Position, cam.EurlerAngles.X, cam.EurlerAngles.Y, 0);
+            Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(playerCam.Fov, playerCam.AspectRatio, playerCam.NearPlane, playerCam.FarPlane);
+            Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(playerCam.Position, playerCam.EurlerAngles.X, playerCam.EurlerAngles.Y, 0);
             MatrixPlanes.Plane[] cameraFrustum = MatrixPlanes.ViewFrustum(viewMatrix, projectionMatrix);
             clusterRegistry.ProcessChunks(registryHandler, cameraFrustum);
         };
