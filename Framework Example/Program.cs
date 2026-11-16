@@ -256,7 +256,7 @@ static class Program
         };
         // Debug Info
         ImGuiController guiController = new(graphics, window, input);
-        DebugRenderer.Load();
+        DebugRenderer.Load(ChunkDimensions.Length);
         window.Render += delta =>
         {
             guiController.Update((float)delta);

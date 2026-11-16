@@ -1,11 +1,16 @@
 using ImGuiNET;
 using GalensUnified.Debugging.ImGui;
+using GalensUnified.CubicGrid.Core;
+using System.Numerics;
+using Silk.NET.Maths;
 
 public static class DebugRenderer
 {
     public const bool showDefaultFPS = true;
     public static bool showDebugInfo = true;
     public static bool showDeltaLogs = true;
+
+    private static int chunkLength;
 
 
     // These two defaults can be modified directly.
@@ -31,11 +36,12 @@ public static class DebugRenderer
         rowConstructorsByTableName.Add(table.tableName, defaultConstructors);
     }
 
-    public static void Load()
+    public static void Load(int chunkLength)
     {
         if (showDefaultFPS)
             foreach (DeltaLogs table in defaultFPSTables)
                 AddDeltaTable(table, defaultTimeTableRows);
+        DebugRenderer.chunkLength = chunkLength;
     }
 
     public static void OnRender(double delta, int chunksGenerating)
@@ -47,7 +53,19 @@ public static class DebugRenderer
         if (!showDebugInfo)
             return;
 
+        Vector3 chunkPos = Program.playerCam.Position / chunkLength;
+        Vector3D<int> chunkCoords = chunkPos.Floor();
+        Vector3D<int> playerBlockInChunk = ((chunkPos - (Vector3)chunkCoords) * chunkLength).Floor();
         ImGui.Begin("Debug");
+        ImGui.Text($"Position: {Program.playerCam.Position:N1}");
+        ImGui.Text
+        (
+            $"Position Chunk: " +
+            $"{chunkCoords.X:N0}.{playerBlockInChunk.X:N0}, " +
+            $"{chunkCoords.Y:N0}.{playerBlockInChunk.Y:N0}, " +
+            $"{chunkCoords.Z:N0}.{playerBlockInChunk.Z:N0}"
+        );
+        ImGui.Text($"Speed: {Program.moveSpeed:N1}/s");
         ImGui.Text($"Generating {chunksGenerating} chunks.");
         if (showDeltaLogs)
         {
