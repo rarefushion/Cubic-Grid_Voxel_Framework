@@ -171,14 +171,9 @@ static class Program
                 (float)Random.Shared.NextDouble() * 2.0f - 1.0f
             ));
         float sunScale = 250f;
-        float sunDistance = 1000f;
+        float sunDistance = playerCam.FarPlane - sunScale;
         Sun.Load(graphics, sunColor, sunDirection, sunScale, sunDistance);
-        window.Render += dt => Sun.Draw
-        (
-            graphics,
-            CameraMatrices.CreateProjectionMatrix(playerCam.Fov, playerCam.AspectRatio, playerCam.NearPlane, playerCam.FarPlane),
-            CameraMatrices.CreateViewMatrix(playerCam.Position, playerCam.EurlerAngles.X, playerCam.EurlerAngles.Y, 0)
-        );
+        window.Render += dt => Sun.Draw(playerCam);
         // Block Behaviors
         int behaviorCount = WaterFull + WaterLevels + 1;
         ChunkCluster<ChunkDimensions>.IBlockBehavior?[] blockBehaviors = new ChunkCluster<ChunkDimensions>.IBlockBehavior?[behaviorCount];

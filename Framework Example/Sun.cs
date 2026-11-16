@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using GalensUnified.CubicGrid.Renderer.NET;
 using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 using Silk.NET.OpenGL;
 
@@ -42,6 +43,8 @@ public static class Sun
     public record VertexArrayObject(uint Vao, uint IndexCount);
     public static List<VertexArrayObject> drawObjects = [];
 
+    private static GL? GL;
+
     public static uint CreateShaders(GL GL, string vertexShaderCode, string fragmentShaderCode)
     {
         uint vertexShader = GL.CreateShader(ShaderType.VertexShader);
@@ -66,6 +69,7 @@ public static class Sun
 
     public unsafe static void Load(GL GL, Vector3 color, Vector3 direction, float scale, float distance)
     {
+        Sun.GL = GL;
         shaderProgram = CreateShaders(GL, _vertexShaderSunSource, _fragmentShaderSunSource);
         projectionShaderLocation = GL.GetUniformLocation(shaderProgram, "projection");
         viewShaderLocation = GL.GetUniformLocation(shaderProgram, "view");
@@ -118,11 +122,15 @@ public static class Sun
         drawObjects.Add(VAO);
     }
 
-    public unsafe static void Draw(GL GL, Matrix4x4 projectionMatrix, Matrix4x4 viewMatrix)
+    public unsafe static void Draw(ICamera camera)
     {
+        if (GL == null)
+            return;
         GL.UseProgram(shaderProgram);
 
         // Camera
+        Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(camera.Fov, camera.AspectRatio, camera.NearPlane, camera.FarPlane);
+        Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(Vector3.Zero, camera.EurlerAngles.X, camera.EurlerAngles.Y, camera.EurlerAngles.Z);
         GL.UniformMatrix4(projectionShaderLocation, 1, false, (float*)&projectionMatrix);
         GL.UniformMatrix4(viewShaderLocation, 1, false, (float*)&viewMatrix);
         foreach (VertexArrayObject mesh in drawObjects)
