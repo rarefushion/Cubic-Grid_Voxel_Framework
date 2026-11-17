@@ -20,7 +20,7 @@ public enum ChunkGenerationStage
     UpdateBehaviors
 }
 
-public class ChunkProcessor<TChunkDims>: IChunkProcessor<Vector3D<int>>
+public class ChunkProcessor<TChunkDims>(ChunkCluster<TChunkDims> cluster): IChunkProcessor<Vector3D<int>>
 where TChunkDims : IChunkDims
 {
     public static int MaxStructureHeight => Tree<TChunkDims>.GetHeight;
@@ -29,18 +29,14 @@ where TChunkDims : IChunkDims
     public static readonly int LowestPointInChunks = HeighestPointInChunks - Program.WorldHeightInChunks;
 
     public readonly ConcurrentDictionary<Vector3D<int>, ConcurrentQueue<Action>> NeedsProcessingByChunk = [];
+    public readonly DeltaLogs chunkGenerationTimes = new("Block Gen T1K", 1000);
 
     private static readonly IStructureGeneration[] structures =
     [
         new Tree<TChunkDims>(),
         new WaterSourceStructure<TChunkDims>()
     ];
-    public static readonly DeltaLogs[] GenerationTimeTables =
-    [
-        new("Block Gen T1K", 1000),
-        new("Instance/Cull T1K", 1000)
-    ];
-    private readonly ChunkCluster<TChunkDims> cluster;
+    private readonly ChunkCluster<TChunkDims> cluster = cluster;
 
     public ChunkTaskGate GetChunkTaskGate(Vector3D<int> chunk, int nextStage) => (ChunkGenerationStage)nextStage switch
     {
@@ -117,7 +113,7 @@ where TChunkDims : IChunkDims
             }
         }
         stopwatch.Stop();
-        GenerationTimeTables[0].LogDelta(stopwatch.Elapsed.Milliseconds);
+        chunkGenerationTimes.LogDelta(stopwatch.Elapsed.Milliseconds);
     }
 
     public Task EnableInCluster(Vector3D<int> chunk, int stage)
@@ -161,17 +157,5 @@ where TChunkDims : IChunkDims
                 cluster.TryUpdateBlockData(blockPos,  new ChunkCluster<TChunkDims>.BlockUpdate<string>("Spawned"));
             }
         }
-    }
-
-    public ChunkProcessor
-    (
-        ChunkCluster<TChunkDims> cluster,
-        bool enableDebugger
-    )
-    {
-        this.cluster = cluster;
-        if (enableDebugger)
-            foreach (DeltaLogs deltaLogs in GenerationTimeTables)
-                DebugRenderer.AddDeltaTable(deltaLogs, DebugRenderer.defaultTimeTableRows);
     }
 }

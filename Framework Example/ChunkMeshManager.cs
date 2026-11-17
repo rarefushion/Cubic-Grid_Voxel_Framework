@@ -4,6 +4,7 @@ using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.CubicGrid.Renderer.NET;
+using GalensUnified.Debugging.ImGui;
 using Silk.NET.Maths;
 using static Program;
 
@@ -23,6 +24,8 @@ where TChunkDims : IChunkDims
     public readonly Vector3 sunDirection = sunDirection;
     public readonly float sunOccludedShade = sunOccludedShade;
     public readonly float minBrightness = minBrightness;
+
+    public readonly DeltaLogs meshGenerationTimes = new("Instance/Cull T1K", 1000);
 
     private record ChunkMesh
     (
@@ -88,7 +91,7 @@ where TChunkDims : IChunkDims
             [.. cullingHandler.quadInstances.SelectMany(i => i.Tints)]
         );
         stopwatch.Stop();
-        ChunkProcessor<TChunkDims>.GenerationTimeTables[1].LogDelta(stopwatch.Elapsed.Milliseconds);
+        meshGenerationTimes.LogDelta(stopwatch.Elapsed.Milliseconds);
         return toReturn;
     }
 

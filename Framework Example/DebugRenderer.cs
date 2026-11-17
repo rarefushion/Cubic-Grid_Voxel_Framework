@@ -36,12 +36,15 @@ public static class DebugRenderer
         rowConstructorsByTableName.Add(table.tableName, defaultConstructors);
     }
 
-    public static void Load(int chunkLength)
+    public static void Load<TChunkDims>(ChunkProcessor<TChunkDims> chunkProcessor, ChunkMeshManager<TChunkDims> meshManager)
+    where TChunkDims : IChunkDims
     {
         if (showDefaultFPS)
             foreach (DeltaLogs table in defaultFPSTables)
                 AddDeltaTable(table, defaultTimeTableRows);
-        DebugRenderer.chunkLength = chunkLength;
+        AddDeltaTable(chunkProcessor.chunkGenerationTimes, defaultTimeTableRows);
+        AddDeltaTable(meshManager.meshGenerationTimes, defaultTimeTableRows);
+        chunkLength = TChunkDims.Length;
     }
 
     public static void OnRender(double delta, int chunksGenerating)

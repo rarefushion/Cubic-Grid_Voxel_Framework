@@ -183,7 +183,7 @@ static class Program
             blockBehaviors[WaterFull + i] = new WaterBlockData<ChunkDimensions>();
         // Chunk Management
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
-        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, true);
+        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster);
         ChunkMeshManager<ChunkDimensions> meshManager = new(chunkCluster, shapeShader, quadShader, sunDirection, 0.6f, 0.05f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         IChunkClusterDirector clusterRegistry = lockGenerationHeight
@@ -241,7 +241,7 @@ static class Program
         };
         // Debug Info
         ImGuiController guiController = new(graphics, window, input);
-        DebugRenderer.Load(ChunkDimensions.Length);
+        DebugRenderer.Load(processor, meshManager);
         window.Render += delta =>
         {
             guiController.Update((float)delta);
