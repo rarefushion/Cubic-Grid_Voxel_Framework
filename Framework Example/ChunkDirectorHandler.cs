@@ -66,8 +66,9 @@ where TChunkDims : IChunkDims
                 }
                 foreach (Vector3D<int> neighbor in CullNeighbors)
                 {
-                    ConcurrentQueue<Action> queue = processor.NeedsProcessingByChunk.GetOrAdd(neighbor, _ => []);
-                    queue.Enqueue(() => processor.UpdateBlockBehaviors(neighbor));
+                    Vector3D<int> toUpdate = new(neighbor.X, Chunk.Y, neighbor.Z);
+                    ConcurrentQueue<Action> queue = processor.NeedsProcessingByChunk.GetOrAdd(toUpdate, _ => []);
+                    queue.Enqueue(() => processor.UpdateBlockBehaviors(toUpdate));
                 }
             }
         return !Program.OverTargtetFrameTime();
