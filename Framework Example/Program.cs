@@ -183,7 +183,8 @@ static class Program
             blockBehaviors[WaterFull + i] = new WaterBlockData<ChunkDimensions>();
         // Chunk Management
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
-        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, shapeShader, quadShader, sunDirection, 0.6f, 0.05f, true);
+        ChunkProcessor<ChunkDimensions> processor = new(chunkCluster, true);
+        ChunkMeshManager<ChunkDimensions> meshManager = new(chunkCluster, shapeShader, quadShader, sunDirection, 0.6f, 0.05f);
         ChunkGenerationPipeline<Vector3D<int>> generationPipeline = new(processor, backgroundThreadBatch);
         IChunkClusterDirector clusterRegistry = lockGenerationHeight
             ? new ChunkClusterDirectorFlat(generationPipeline, ChunkDimensions.Length, renderDistance, camStartPos.Floor(), 32)
@@ -192,8 +193,8 @@ static class Program
         WaterBlockData<ChunkDimensions>.cluster = chunkCluster;
         WaterBlockData<ChunkDimensions>.processor = processor;
 
-        ChunkDirectorHandler<ChunkDimensions> registryHandler = new(chunkCluster, processor);
-        Action<Vector3D<int>> chunkUpdate = processor.RedrawInstant;
+        ChunkDirectorHandler<ChunkDimensions> registryHandler = new(chunkCluster, processor, meshManager);
+        Action<Vector3D<int>> chunkUpdate = meshManager.RenderSynchronous;
         // Render Loop
         bool LMBHeld = false;
         window.Render += dt =>
@@ -226,23 +227,12 @@ static class Program
                     {
                         while (processes.TryDequeue(out Action process))
                             process();
-                        processor.Redraw(chunk);
+                        meshManager.RenderAsync(chunk);
                     });
 
-            while (processor.NeedRendering.TryDequeue(out var result))
-            {
-                shapeShader.DeactivateChunk(result.Position);
-                quadShader.DeactivateChunk(result.Position);
-                if (chunkCluster.IsActive(result.Position.Floor()))
-                {
-                    if (result.ShapeInstances.Length > 0)
-                        shapeShader.RenderChunk(result.Position, result.ShapeInstances, result.ShapeTints);
-                    if (result.QuadInstances.Length > 0)
-                        quadShader.RenderChunk(result.Position, result.QuadInstances, result.QuadTints);
-                }
-                if (OverTargtetFrameTime())
-                    return;
-            }
+            meshManager.Update();
+            if (OverTargtetFrameTime())
+                return;
 
             Matrix4x4 projectionMatrix = CameraMatrices.CreateProjectionMatrix(playerCam.Fov, playerCam.AspectRatio, playerCam.NearPlane, playerCam.FarPlane);
             Matrix4x4 viewMatrix = CameraMatrices.CreateViewMatrix(playerCam.Position, playerCam.EurlerAngles.X, playerCam.EurlerAngles.Y, 0);
