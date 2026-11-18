@@ -25,21 +25,24 @@ where TChunkDims : IChunkDims
     public readonly float sunOccludedShade = sunOccludedShade;
     public readonly float minBrightness = minBrightness;
 
+    private ulong nextTicket = 0;
+
     public readonly DeltaLogs meshGenerationTimes = new("Instance/Cull T1K", 1000);
 
     private record ChunkMesh
     (
         Vector3 Position,
+        ulong Ticket,
         ShapeInstance[] ShapeInstances, Vector3[] ShapeTints,
         GridAlignedQuadInstance[] QuadInstances, Vector3[] QuadTints
     );
     private readonly ConcurrentQueue<ChunkMesh> NeedRendering = [];
+    private readonly ConcurrentDictionary<Vector3D<int>, ulong> chunkCounters = [];
 
     public void Update()
     {
         while (NeedRendering.TryDequeue(out var result))
         {
-            DeactivateChunk(result.Position);
             RenderMesh(result);
             if (OverTargtetFrameTime())
                 return;
@@ -58,6 +61,8 @@ where TChunkDims : IChunkDims
 
     private void RenderMesh(ChunkMesh mesh)
     {
+        if (!chunkCounters.TryGetValue(mesh.Position.Floor(), out ulong ticket) || mesh.Ticket != ticket)
+            return;
         DeactivateChunk(mesh.Position);
         if (!cluster.IsActive(mesh.Position.Floor()))
             return;
@@ -80,11 +85,14 @@ where TChunkDims : IChunkDims
     private ChunkMesh CreateMesh(Vector3D<int> chunk)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
+        ulong ticket = Interlocked.Increment(ref nextTicket);
+        chunkCounters.AddOrUpdate(chunk, ticket, (_, _) => ticket);
         ShapeInstancer<TChunkDims> cullingHandler = new((Vector3)chunk, sunDirection, sunOccludedShade, minBrightness, cluster);
         cullingHandler = cluster.CullChunk(chunk, cullingHandler);
         ChunkMesh toReturn = new
         (
             (Vector3)chunk,
+            ticket,
             [.. cullingHandler.shapeInstances.Select(i => i.ShapeInstance)],
             [.. cullingHandler.shapeInstances.Select(i => i.Tint)],
             [.. cullingHandler.quadInstances.Select(i => i.QuadInstance)],
@@ -97,6 +105,7 @@ where TChunkDims : IChunkDims
 
     public void DeactivateChunk(Vector3 chunk)
     {
+        chunkCounters.Remove(chunk.Floor(), out _);
         shapeShader.DeactivateChunk(chunk);
         quadShader.DeactivateChunk(chunk);
     }
