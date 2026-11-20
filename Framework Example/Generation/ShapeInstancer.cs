@@ -77,27 +77,79 @@ where TChunkDims : IChunkDims
         greedyQuadInstancer.AddRange(blockInstance.quadInstancesAndTints);
     }
 
+    /// <summary>Tests if a face of a block is occluded from a light source.</summary>
+    /// <param name="blockPos">The position of the block being tested.</param>
+    /// <param name="faceNormal">The face of the block being tested. Position tests will get offset using this.</param>
+    /// <param name="lightSourceBlock">The light source block, the block the raycast expects to hit.</param>
+    /// <param name="chunkCluster">The chunk cluster to raycast with.</param>
+    /// <param name="directionToLight">
+    /// From the <paramref name="blockPos"/> the direction to the light. Must be normalized.
+    /// The <paramref name="faceNormal"/> position offset does not modify this, in some cases leading to incorrect results.
+    /// </param>
+    /// <param name="distanceToLight">
+    /// From the <paramref name="blockPos"/> the distance to the light.
+    /// The <paramref name="faceNormal"/> position offset does not modify this, in some cases leading to incorrect results.
+    /// </param>
+    /// <param name="lightDotProduct">
+    /// The dot product or how similar <paramref name="faceNormal"/> is to <paramref name="directionToLight"/>. <br/>
+    /// Uses Vector3.Dot(<paramref name="directionToLight"/>, <paramref name="faceNormal"/>.ToVector()). <br/>
+    /// If these two point in the exact same direction this will be 1f.
+    /// If they point in opposite directions this will be -1f.
+    /// </param>
+    /// <param name="raycastResult">The raycast result provided by <paramref name="chunkCluster"/>.</param>
+    /// <returns>
+    /// True if the blocks face could not see the light. <br/>
+    /// False if the face was facing the light, the light was closer than <paramref name="distanceToLight"/>
+    /// and the path was not obstructed.
+    /// </returns>
+    public static bool IsLightOccluded
+    (
+        Vector3 blockPos, Direction faceNormal,
+        ushort lightSourceBlock, ChunkCluster<TChunkDims> chunkCluster,
+        Vector3 directionToLight, float distanceToLight,
+        out float lightDotProduct,
+        out RaycastResult? raycastResult
+    )
+    {
+        Vector3 faceNormalVec = faceNormal.ToVector();
+        lightDotProduct = Vector3.Dot(directionToLight, faceNormalVec);
+        raycastResult = null;
+        if (lightDotProduct < 0f)
+            return true;
+        Vector3 facePosition = blockPos + FaceCenters[(int)faceNormal];
+        distanceToLight = MathF.Min(distanceToLight, MaxShadowTraceDistance);
+        raycastResult = chunkCluster.Raycast(facePosition, directionToLight, distanceToLight);
+        if (raycastResult.Distance > distanceToLight || raycastResult.Block != lightSourceBlock)
+            return true;
+        return false;
+    }
+
     private readonly float GetShadow(Vector3 blockPos, ushort block, Direction faceNormal)
     {
         float brightness = 1;
         Vector3 directionVec = faceNormal.ToVector();
         Vector3 facePosition = blockPos + FaceCenters[(int)faceNormal];
         // Sun occlusion
-        float sunDot = Vector3.Dot(-sunDirection, directionVec);
-        if (sunDot > 0f)
-        {
-            if (cluster.Raycast(facePosition, -sunDirection, MaxShadowTraceDistance).Block != Air)
-                brightness -= sunOccludedShade;
-            else
-                brightness -= sunOccludedShade * (1 - sunDot);
-        }
+        if (!IsLightOccluded(blockPos, faceNormal, 0, cluster, -sunDirection, MaxShadowTraceDistance, out float sunDot, out _))
+            brightness -= sunOccludedShade * (1 - sunDot);
         else
             brightness -= sunOccludedShade;
         // Sky occlusion
-        RaycastResult skyRayResult = cluster.Raycast(facePosition, Vector3.UnitY, maxSkyShadeDisWithSun);
-        if (skyRayResult.Block != Air)
+        if
+        (
+            IsLightOccluded
+            (
+                blockPos, faceNormal,
+                0, cluster,
+                Vector3.UnitY, maxSkyShadeDisWithSun,
+                out _,
+                out RaycastResult? skyRayResult
+            ) &&
+            skyRayResult != null
+        )
         {
-            brightness -= skyOccludedShade * (1 - (MathF.Min(MathF.Floor(skyRayResult.Distance - 0.5f), maxSkyShadeDisWithSun) / maxSkyShadeDisWithSun));
+            float distanceInBlocks = MathF.Min(MathF.Floor(skyRayResult!.Distance - 0.5f), maxSkyShadeDisWithSun);
+            brightness -= skyOccludedShade * (1 - (distanceInBlocks / maxSkyShadeDisWithSun));
         }
         // Ambient occlusion
         foreach (Direction testDirection in Enum.GetValues<Direction>())
