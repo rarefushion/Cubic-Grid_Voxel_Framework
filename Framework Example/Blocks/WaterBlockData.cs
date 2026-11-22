@@ -22,18 +22,21 @@ where TChunkDims : IChunkDims
         ChunkCluster<TChunkDims>.BlockUpdate<TPayload> blockUpdate
     )
     {
+        string payload = string.Empty;
+        if (blockUpdate is ChunkCluster<TChunkDims>.BlockUpdate<string> stringUpdate)
+            payload = stringUpdate.Payload;
         WaterBlockData<TChunkDims> data = (WaterBlockData<TChunkDims>)blockData;
         Vector3D<int> rootChunk = blockPosition.FloorTo(TChunkDims.Length);
-        if (TrySpread(blockPosition + -Vector3D<int>.UnitY, rootChunk, data, Direction.Bottom))
+        if (TrySpread(blockPosition + -Vector3D<int>.UnitY, rootChunk, data, Direction.Bottom, payload))
             return;
         if (data.level <= 0)
             return;
         for (Direction d = 0; d < (Direction)6; d++)
             if (d != Direction.Top && d != Direction.Bottom)
-                TrySpread(blockPosition + d.ToVector().Floor(), rootChunk, data, d);
+                TrySpread(blockPosition + d.ToVector().Floor(), rootChunk, data, d, payload);
     }
 
-    private bool TrySpread(Vector3D<int> testPosition, Vector3D<int> rootChunk, WaterBlockData<TChunkDims> blockData, Direction to)
+    private bool TrySpread(Vector3D<int> testPosition, Vector3D<int> rootChunk, WaterBlockData<TChunkDims> blockData, Direction to, string payload)
     {
         if (!cluster.TryGetBlock(testPosition, out ushort? testBlock))
             return false;
@@ -52,7 +55,7 @@ where TChunkDims : IChunkDims
             return false;
 
         Vector3D<int> testChunk = testPosition.FloorTo(TChunkDims.Length);
-        if (testChunk == rootChunk)
+        if (testChunk == rootChunk || payload == "Neighbor Updated")
             Spread(testPosition, nextLevel, to);
         else
         {
