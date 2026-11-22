@@ -33,6 +33,7 @@ where TChunkDims : IChunkDims
                 chunkMeshManager.RenderSynchronous(testChunkPosition);
         }
         // Update Modified Chunk
+        chunkCluster.TryUpdateBlockData(blockPos, new ChunkCluster<TChunkDims>.BlockUpdate<string>("Updated"));
         chunkMeshManager.RenderSynchronous(chunkPos);
         // Update Sun Shadows
         foreach (Direction direction in Enum.GetValues(typeof(Direction)))

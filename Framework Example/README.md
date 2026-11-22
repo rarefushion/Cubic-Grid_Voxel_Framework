@@ -8,5 +8,7 @@ WASD to move forward, back, left and right.
 Shift to move down.
 Space to move up.
 Scroll wheel to increase or decrease speed.
-Left Mouse to break block in front of you. (Won't work if you out of bounds, e.g above tree height.)
+Left Mouse to break the block in front of you. (Won't work if you out of bounds, e.g above tree height.)
 Left Control uncaps break range and lets you hold left mouse to break the next block every frame.
+Right Mouse to place the block selected in the block picker gui on the block in front of you. (Won't work if you out of bounds, e.g above tree height.)
+Left Control uncaps place range and lets you hold right mouse to place the next block every frame.

@@ -20,6 +20,7 @@ using Silk.NET.Windowing;
 using ChunkDimensions = GalensUnified.CubicGrid.Core.DoubleChunkDims;
 
 using static BlockIDs;
+using ImGuiNET;
 
 static class Program
 {
@@ -72,6 +73,11 @@ static class Program
             {
                 cursorVisible = !cursorVisible;
                 input.Mice[0].Cursor.CursorMode = cursorVisible ? CursorMode.Normal : CursorMode.Raw;
+                ImGuiIOPtr io = ImGui.GetIO();
+                if (cursorVisible)
+                    io.ConfigFlags &= ~ImGuiConfigFlags.NoMouse;
+                else
+                    io.ConfigFlags |= ImGuiConfigFlags.NoMouse;
             }
             if (key == Key.F3)
                 DebugRenderer.showDebugInfo = !DebugRenderer.showDebugInfo;
@@ -197,6 +203,7 @@ static class Program
         BlockUpdateDispatcher<ChunkDimensions> blockUpdateDispatcher = new(chunkCluster, meshManager, sunDirection);
         // Render Loop
         bool LMBHeld = false;
+        bool RMBHeld = false;
         window.Render += dt =>
         {
             frameStart = DateTime.Now;
@@ -219,6 +226,25 @@ static class Program
             )
                 blockUpdateDispatcher.BlockUpdated(breakPosition!.Value);
             LMBHeld = LMB;
+            bool RMB = input.Mice[0].IsButtonPressed(MouseButton.Right);
+            if
+            (
+                RMB &&
+                (!RMBHeld || ctrl) &&
+                !cursorVisible &&
+                Interactions.AttemptPlace
+                (
+                    chunkCluster,
+                    playerCam.Position,
+                    Vector3.Transform(-Vector3.UnitZ, Quaternion.CreateFromYawPitchRoll(playerCam.EurlerAngles.Y, playerCam.EurlerAngles.X, 0)),
+                    ctrl ? float.MaxValue : InteractionRange,
+                    BlockPickerGUI.block,
+                    BlockPickerGUI.block == WaterFull ? new WaterBlockData<ChunkDimensions>() : null,
+                    out Vector3D<int>? placePosition, out _
+                )
+            )
+                blockUpdateDispatcher.BlockUpdated(placePosition!.Value);
+            RMBHeld = RMB;
 
             clusterRegistry.SetCentrePosition(playerCam.Position.Floor());
             if (OverTargtetFrameTime())
@@ -243,12 +269,13 @@ static class Program
             MatrixPlanes.Plane[] cameraFrustum = MatrixPlanes.ViewFrustum(viewMatrix, projectionMatrix);
             clusterRegistry.ProcessChunks(registryHandler, cameraFrustum);
         };
-        // Debug Info
+        // GUI Menus
         ImGuiController guiController = new(graphics, window, input);
         DebugRenderer.Load(processor, meshManager);
         window.Render += delta =>
         {
             guiController.Update((float)delta);
+            BlockPickerGUI.OnRender(delta);
             DebugRenderer.OnRender(delta, generationPipeline.ChunksInPipeline.Count());
             guiController.Render();
         };
