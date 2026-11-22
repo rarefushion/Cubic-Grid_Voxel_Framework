@@ -28,7 +28,7 @@ struct ShapeInstancer<TChunkDims>
 where TChunkDims : IChunkDims
 {
     private const int MaxShadowTraceDistance = 500;
-    private const int maxSkyShadeDisWithSun = 25;
+    public const int maxSkyShadeDisWithSun = 25;
     private const float skyOccludedShade = 0.2f;
     private const float abientOcclusionShade = 0.05f;
 

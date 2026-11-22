@@ -1,9 +1,12 @@
-﻿using System.Numerics;
+﻿using System.Collections.Concurrent;
+using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
 using GalensUnified.CubicGrid.Framework.ChunkGeneration;
 using GalensUnified.CubicGrid.Framework.ChunkOrchestration;
+using GalensUnified.CubicGrid.Framework.Player;
 using GalensUnified.CubicGrid.Renderer.NET;
+using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 using Microsoft.DotNet.PlatformAbstractions;
 using Silk.NET.Input;
 using Silk.NET.Maths;
@@ -17,9 +20,6 @@ using Silk.NET.Windowing;
 using ChunkDimensions = GalensUnified.CubicGrid.Core.DoubleChunkDims;
 
 using static BlockIDs;
-using GalensUnified.CubicGrid.Framework.Player;
-using System.Collections.Concurrent;
-using GalensUnified.CubicGrid.Renderer.NET.Shapes;
 
 static class Program
 {
@@ -194,7 +194,7 @@ static class Program
         WaterBlockData<ChunkDimensions>.processor = processor;
 
         ChunkDirectorHandler<ChunkDimensions> registryHandler = new(chunkCluster, processor, meshManager);
-        Action<Vector3D<int>> chunkUpdate = meshManager.RenderSynchronous;
+        BlockUpdateDispatcher<ChunkDimensions> blockUpdateDispatcher = new(chunkCluster, meshManager, sunDirection);
         // Render Loop
         bool LMBHeld = false;
         window.Render += dt =>
@@ -203,17 +203,21 @@ static class Program
 
             bool ctrl = input.Keyboards[0].IsKeyPressed(Key.ControlLeft);
             bool LMB = input.Mice[0].IsButtonPressed(MouseButton.Left);
-            if (LMB && (!LMBHeld || ctrl))
-            {
+            if
+            (
+                LMB &&
+                (!LMBHeld || ctrl) &&
+                !cursorVisible &&
                 Interactions.AttemptBreak
                 (
                     chunkCluster,
                     playerCam.Position,
                     Vector3.Transform(-Vector3.UnitZ, Quaternion.CreateFromYawPitchRoll(playerCam.EurlerAngles.Y, playerCam.EurlerAngles.X, 0)),
                     ctrl ? float.MaxValue : InteractionRange,
-                    chunkUpdate
-                );
-            }
+                    out Vector3D<int>? breakPosition, out _
+                )
+            )
+                blockUpdateDispatcher.BlockUpdated(breakPosition!.Value);
             LMBHeld = LMB;
 
             clusterRegistry.SetCentrePosition(playerCam.Position.Floor());
