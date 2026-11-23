@@ -186,7 +186,7 @@ static class Program
         for (int i = 0; i < behaviorCount; i++)
             blockBehaviors[i] = null;
         for (int i = 0; i < WaterLevels; i++)
-            blockBehaviors[WaterFull + i] = new WaterBlockData<ChunkDimensions>();
+            blockBehaviors[WaterFull + i] = new WaterBlockData<ChunkDimensions>(default, default);
         // Chunk Management
         ChunkCluster<ChunkDimensions> chunkCluster = new(WorldLengthInChunks, WorldHeightInChunks, blockBehaviors);
         ChunkProcessor<ChunkDimensions> processor = new(chunkCluster);
@@ -239,11 +239,16 @@ static class Program
                     Vector3.Transform(-Vector3.UnitZ, Quaternion.CreateFromYawPitchRoll(playerCam.EurlerAngles.Y, playerCam.EurlerAngles.X, 0)),
                     ctrl ? float.MaxValue : InteractionRange,
                     BlockPickerGUI.block,
-                    BlockPickerGUI.block == WaterFull ? new WaterBlockData<ChunkDimensions>() : null,
+                    null,
                     out Vector3D<int>? placePosition, out _
                 )
             )
+            {
+                ChunkCluster<ChunkDimensions>.IBlockData? blockData = processor.CreateBlockData(placePosition!.Value, BlockPickerGUI.block);
+                if (blockData != null)
+                    chunkCluster.TrySetBlockData(placePosition!.Value, blockData);
                 blockUpdateDispatcher.BlockUpdated(placePosition!.Value);
+            }
             RMBHeld = RMB;
 
             clusterRegistry.SetCentrePosition(playerCam.Position.Floor());

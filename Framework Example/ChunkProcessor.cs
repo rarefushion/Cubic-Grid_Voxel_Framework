@@ -148,14 +148,26 @@ where TChunkDims : IChunkDims
         for (int blockX = 0; blockX < TChunkDims.Length; blockX++)
         for (int blockY = 0; blockY < TChunkDims.Length; blockY++)
         {
-            int i = ChunkMath<TChunkDims>.IndexByLocalPos(new(blockX, blockY, blockZ));
-            if (WaterRendering.IsWater(blocks[i]))
+            Vector3D<int> localPos = new(blockX, blockY, blockZ);
+            Vector3D<int> blockPos = localPos + chunk;
+            int i = ChunkMath<TChunkDims>.IndexByLocalPos(localPos);
+            ChunkCluster<TChunkDims>.IBlockData? blockData = CreateBlockData(blockPos, blocks[i]);
+            if (blockData != null)
             {
-                Vector3D<int> blockPos = new Vector3D<int>(blockX, blockY, blockZ) + chunk;
-                if (!cluster.TryGetBlockData<WaterBlockData<TChunkDims>>(blockPos, out _))
-                    cluster.TrySetBlockData(blockPos, new WaterBlockData<TChunkDims>());
-                cluster.TryUpdateBlockData(blockPos,  new ChunkCluster<TChunkDims>.BlockUpdate<string>("Spawned"));
+                if (!cluster.TryGetBlockData<ChunkCluster<TChunkDims>.IBlockData>(blockPos, out _))
+                    cluster.TrySetBlockData(blockPos, blockData);
+                if (blockData is WaterBlockData<TChunkDims> waterData)
+                    cluster.TryUpdateBlockData(blockPos,  new ChunkCluster<TChunkDims>.BlockUpdate<string>("Spawned"));
             }
         }
+    }
+
+    public ChunkCluster<TChunkDims>.IBlockData? CreateBlockData(Vector3D<int> blockPosition, ushort block)
+    {
+        if (block == Grass || block == OakLeaves)
+            return new TintBlockData<TChunkDims>(GetBiomeTint((Vector3)blockPosition));
+        if (WaterRendering.IsWater(block))
+            return new WaterBlockData<TChunkDims>(WaterLevels, GetWaterTint((Vector3)blockPosition));
+        return null;
     }
 }

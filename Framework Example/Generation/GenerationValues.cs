@@ -41,6 +41,12 @@ public static class GenerationValues
     public static float GetTemperature(Vector3 position) =>
         (Temperature.GetNoise(position.X, position.Z) + 1) / 2;
 
+    public static Vector3 GetBiomeTint(Vector3 blockPosition) =>
+        Vector3.Lerp(AutumnColor, LushColor, GetTemperature(blockPosition));
+
+    public static Vector3 GetWaterTint(Vector3 waterPosition) =>
+        Vector3.Lerp(AutumnWaterColor, LushWaterColor, GetTemperature(waterPosition));
+
     static GenerationValues()
     {
         FNL = new(Seed);

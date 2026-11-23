@@ -55,18 +55,26 @@ where TChunkDims : IChunkDims
         Vector3 blockPos = chunkPosition + localBlockPosition;
         BlockRenderData renderData = BlockRenderData.renderDataByBlock[block];
         tintStorage.Clear();
+        Vector3 dataTint = Vector3.One;
+        if (cluster.TryGetBlockData(blockPos.Floor(), out ChunkCluster<TChunkDims>.IBlockData? blockdata))
+        {
+            if (blockdata is TintBlockData<TChunkDims> tintData)
+                dataTint = tintData.tint;
+            if (blockdata is WaterBlockData<TChunkDims> waterData)
+                dataTint = waterData.tint;
+        }
         for (int i = 0; i < facesVisible.Count; i++)
         {
+            float shadow = GetShadow(blockPos, block, facesVisible[i]);
             if (block == 1 && facesVisible[i] is not (Direction.Top or Direction.Bottom))
             {
                 // Create another face for the Grass Side to fill in the bottom with dirt with no tint.
-                float shadow = GetShadow(blockPos, block, facesVisible[i]);
                 BlockRenderData grassSideDirtRD = BlockRenderData.renderDataByBlock[GrassSideDirt];
                 BlockRenderInstance grassSideDirtInstance = grassSideDirtRD
                     .InstanceMixTints(localBlockPosition, [Vector3.One * shadow], [facesVisible[i]], Direction.Top, 0);
                 greedyQuadInstancer.AddRange(grassSideDirtInstance.quadInstancesAndTints);
             }
-            tintStorage.Add(GetShadedTint(blockPos, block, facesVisible[i]));
+            tintStorage.Add(dataTint * shadow);
         }
         // Rotation
         Direction up = Direction.Top;
@@ -165,22 +173,6 @@ where TChunkDims : IChunkDims
         if (facePosition.Y < MinTerrainHeight)
             brightness *= float.Lerp(1, minBrightness, (MathF.Max(facePosition.Y, MinTerrainHeight - 32) - MinTerrainHeight) / -32);
         return MathF.Max(brightness, minBrightness);
-    }
-
-    private readonly Vector3 GetShadedTint(Vector3 blockPos, ushort block, Direction faceNormal)
-    {
-        float shadow = GetShadow(blockPos, block, faceNormal);
-
-        Vector3 tint = Vector3.One;
-        if (block == Grass && faceNormal != Direction.Bottom) // Only Grass, not bottoms
-        {
-            tint = Vector3.Lerp(AutumnColor, LushColor, GetTemperature(blockPos));
-        }
-        if (block == OakLeaves)
-            tint = Vector3.Lerp(AutumnColor, LushColor, GetTemperature(blockPos));
-        if (WaterRendering.IsWater(block))
-            tint = Vector3.Lerp(AutumnWaterColor, LushWaterColor, GetTemperature(blockPos));
-        return tint * shadow;
     }
 
     public void CullFinalize() => quadInstances = greedyQuadInstancer.Merge();

@@ -1,16 +1,18 @@
 using System.Collections.Concurrent;
+using System.Numerics;
 using GalensUnified.CubicGrid.Core;
 using GalensUnified.CubicGrid.Framework;
 using Silk.NET.Maths;
 
 using static BlockIDs;
 
-public class WaterBlockData<TChunkDims>() :
+public class WaterBlockData<TChunkDims>(int level, Vector3 tint) :
 ChunkCluster<TChunkDims>.IBlockBehavior,
 ChunkCluster<TChunkDims>.IBlockData
 where TChunkDims : IChunkDims
 {
-    public int level = WaterLevels;
+    public int level = level;
+    public Vector3 tint = tint;
 
     public static ChunkCluster<TChunkDims> cluster;
     public static ChunkProcessor<TChunkDims> processor;
@@ -71,7 +73,7 @@ where TChunkDims : IChunkDims
             return;
         if (testBlock != Air && !WaterRendering.IsWater(testBlock!.Value))
             return;
-        WaterBlockData<TChunkDims> data = new() { level = level };
+        WaterBlockData<TChunkDims> data = new(level, GenerationValues.GetWaterTint((Vector3)testPosition));
         if (!cluster.TrySetBlock(testPosition, WaterRendering.GetBlock(data.level)))
             return;
 
