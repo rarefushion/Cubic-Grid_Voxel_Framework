@@ -119,12 +119,14 @@ static class Program
             // WaterFull
             BRDFactory.CreateWithName("Water", gridAlignedCube),
             // Water Levels
-            .. WaterRendering.shapeByWaterLevel.Select(shape => BRDFactory.CreateWithName("Water", shape))
+            .. WaterRendering.shapeByWaterLevel.Select(shape => BRDFactory.CreateWithName("Water", shape)),
+            // Blank
+            BRDFactory.CreateWithName("Blank", gridAlignedCube)
         ];
         for (ushort i = 0; i < BlockRenderData.renderDataByBlock.Length; i++)
             BlockCulling.transparencyModeByBlock.TryAdd(i, BlockCulling.TransparencyMode.Opaque);
         BlockCulling.transparencyModeByBlock[OakLeaves] = BlockCulling.TransparencyMode.RenderOnTransparent;
-        for (ushort i = 0; i <= WaterLevels; i++)
+        for (ushort i = 1; i <= WaterLevels; i++)
             BlockCulling.transparencyModeByBlock[WaterRendering.GetBlock(i)] = BlockCulling.TransparencyMode.RenderOnTransparent;
 
         // Create Graphics and Shader
@@ -244,7 +246,8 @@ static class Program
                 )
             )
             {
-                ChunkCluster<ChunkDimensions>.IBlockData? blockData = processor.CreateBlockData(placePosition!.Value, BlockPickerGUI.block);
+                ChunkCluster<ChunkDimensions>.IBlockData? blockData = BlockPickerGUI
+                    .GetBlockData<ChunkDimensions>(placePosition!.Value, BlockPickerGUI.block);
                 if (blockData != null)
                     chunkCluster.TrySetBlockData(placePosition!.Value, blockData);
                 blockUpdateDispatcher.BlockUpdated(placePosition!.Value);

@@ -162,7 +162,7 @@ where TChunkDims : IChunkDims
         }
     }
 
-    public ChunkCluster<TChunkDims>.IBlockData? CreateBlockData(Vector3D<int> blockPosition, ushort block)
+    public static ChunkCluster<TChunkDims>.IBlockData? CreateBlockData(Vector3D<int> blockPosition, ushort block)
     {
         if (block == Grass || block == OakLeaves)
             return new TintBlockData<TChunkDims>(GetBiomeTint((Vector3)blockPosition));

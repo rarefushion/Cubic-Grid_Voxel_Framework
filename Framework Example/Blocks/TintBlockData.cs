@@ -5,5 +5,5 @@ using GalensUnified.CubicGrid.Framework;
 public class TintBlockData<TChunkDims>(Vector3 tint) : ChunkCluster<TChunkDims>.IBlockData
 where TChunkDims : IChunkDims
 {
-    public readonly Vector3 tint = tint;
+    public Vector3 tint = tint;
 }
